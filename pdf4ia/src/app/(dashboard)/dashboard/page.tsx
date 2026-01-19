@@ -197,7 +197,7 @@ export default function DashboardPage() {
                                             day: 'numeric'
                                         });
                                     }}
-                                    formatter={(value: number | undefined, name: string) => {
+                                    formatter={(value: number | undefined, name: string | undefined) => {
                                         if (value === undefined) return ['', ''];
                                         const label = name === 'created' ? t('created') : t('downloads');
                                         return [value, label];

@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useI18n } from "@/hooks/useI18n";
 
-export default function ResetPasswordPage() {
+import { Suspense } from "react";
+
+function ResetPasswordContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { t } = useI18n();
@@ -153,5 +155,13 @@ export default function ResetPasswordPage() {
                 </Link>
             </div>
         </div>
+    );
+}
+
+export default function ResetPasswordPage() {
+    return (
+        <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+            <ResetPasswordContent />
+        </Suspense>
     );
 }

@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     // Even if there's an error, clear the cookie
     const response = NextResponse.json(
-      { error: error.message || "Logout failed" },
+      { error: error instanceof Error ? error.message : "Logout failed" },
       { status: 500 },
     );
 

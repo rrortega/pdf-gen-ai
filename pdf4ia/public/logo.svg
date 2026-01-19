@@ -1,0 +1,46 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- PDF Document -->
+  <rect x="20" y="15" width="50" height="65" rx="3" fill="#DC2626" stroke="#B91C1C" stroke-width="2"/>
+  <text x="45" y="52" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="white" text-anchor="middle">PDF</text>
+  
+  <!-- Circuit Lines -->
+  <g stroke="#3B82F6" stroke-width="2" fill="none">
+    <!-- Left side circuits -->
+    <circle cx="10" cy="30" r="3" fill="#3B82F6"/>
+    <line x1="13" y1="30" x2="20" y2="30"/>
+    
+    <circle cx="10" cy="45" r="3" fill="#3B82F6"/>
+    <line x1="13" y1="45" x2="20" y2="45"/>
+    
+    <circle cx="10" cy="60" r="3" fill="#3B82F6"/>
+    <line x1="13" y1="60" x2="20" y2="60"/>
+    
+    <!-- Right side circuits -->
+    <line x1="70" y1="30" x2="80" y2="30"/>
+    <line x1="70" y1="45" x2="80" y2="45"/>
+    <line x1="70" y1="60" x2="80" y2="60"/>
+  </g>
+  
+  <!-- AI Brain/Network -->
+  <g stroke="#6366F1" stroke-width="2" fill="none">
+    <!-- Central hub -->
+    <circle cx="95" cy="47.5" r="20" stroke="#6366F1" stroke-width="2.5"/>
+    
+    <!-- Neural network nodes -->
+    <circle cx="85" cy="35" r="4" fill="#6366F1"/>
+    <circle cx="105" cy="35" r="4" fill="#6366F1"/>
+    <circle cx="85" cy="60" r="4" fill="#6366F1"/>
+    <circle cx="105" cy="60" r="4" fill="#6366F1"/>
+    <circle cx="95" cy="47.5" r="4" fill="#8B5CF6"/>
+    
+    <!-- Connections -->
+    <line x1="85" y1="35" x2="95" y2="47.5" stroke="#6366F1" stroke-width="1.5"/>
+    <line x1="105" y1="35" x2="95" y2="47.5" stroke="#6366F1" stroke-width="1.5"/>
+    <line x1="85" y1="60" x2="95" y2="47.5" stroke="#6366F1" stroke-width="1.5"/>
+    <line x1="105" y1="60" x2="95" y2="47.5" stroke="#6366F1" stroke-width="1.5"/>
+    
+    <!-- Cross connections -->
+    <line x1="85" y1="35" x2="105" y2="60" stroke="#6366F1" stroke-width="1" opacity="0.5"/>
+    <line x1="105" y1="35" x2="85" y2="60" stroke="#6366F1" stroke-width="1" opacity="0.5"/>
+  </g>
+</svg>

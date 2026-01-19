@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireOAuth } from '@/lib/oauth-middleware';
-import { getServerAppwriteTables, DATABASE_ID } from '@/lib/appwrite';
+import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite';
+import { getAuthenticatedDatabases } from '@/lib/auth';
 import { Query } from 'node-appwrite';
 
 /**
@@ -11,41 +12,28 @@ import { Query } from 'node-appwrite';
  */
 export async function GET(request: NextRequest) {
   try {
-    // Try OAuth authentication first
     const oauthResult = await requireOAuth(request, ['templates:read']);
 
+    let tables;
     let userId: string;
 
     if ('error' in oauthResult) {
-      // OAuth failed, try API key authentication
-      const apiKey = request.headers.get('x-api-key');
-
-      if (!apiKey) {
-        return NextResponse.json(
-          { error: 'Authentication required. Provide either OAuth token or API key.' },
-          { status: 401 }
-        );
+      // OAuth failed, try helper that supports Session and API Key
+      const auth = await getAuthenticatedDatabases(request);
+      if (!auth) {
+        return oauthResult.error;
       }
-
-      // Verify API key and get user ID
-      const tables = getServerAppwriteTables();
-      const apiKeyDocs = await tables.listDocuments(
-        DATABASE_ID,
-        'api_keys',
-        [Query.equal('key', apiKey), Query.limit(1)]
-      );
-
-      if (apiKeyDocs.documents.length === 0) {
-        return NextResponse.json(
-          { error: 'Invalid API key' },
-          { status: 401 }
-        );
-      }
-
-      userId = apiKeyDocs.documents[0].user_id;
+      tables = auth.tables;
+      userId = auth.user.id;
     } else {
-      // OAuth authentication successful
-      userId = oauthResult.context.userId;
+      // OAuth successful
+      const auth = await getAuthenticatedDatabases(request);
+      if (!auth) {
+        // Fallback or error if oauth scope check passed but getAuthenticatedDatabases failed
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      tables = auth.tables;
+      userId = auth.user.id;
     }
 
     // Get query parameters
@@ -54,7 +42,7 @@ export async function GET(request: NextRequest) {
     const tags = searchParams.get('tags')?.split(',');
 
     // Build queries
-    const queries = [Query.equal('user_id', userId)];
+    const queries = [searchParams.get('base') ? Query.isNull('user_id') : Query.equal('user_id', userId)];
 
     if (search) {
       queries.push(Query.search('title', search));
@@ -64,31 +52,31 @@ export async function GET(request: NextRequest) {
       queries.push(Query.contains('tags', tags));
     }
 
-    // Get templates
-    const tables = getServerAppwriteTables();
-    const response = await tables.listDocuments(
-      DATABASE_ID,
-      'templates',
-      queries
-    );
+    // Get templates using TablesDB
+    const response = await tables.listRows({
+      databaseId: DATABASE_ID,
+      tableId: COLLECTIONS.TEMPLATES,
+      queries: queries
+    });
 
     return NextResponse.json({
       success: true,
       total: response.total,
-      templates: response.documents.map(doc => ({
-        $id: doc.$id,
-        title: doc.title,
-        description: doc.description,
-        tags: doc.tags,
-        $createdAt: doc.$createdAt,
-        $updatedAt: doc.$updatedAt,
+      templates: response.rows.map(row => ({
+        $id: row.$id,
+        title: row.title,
+        description: row.description,
+        tags: row.tags,
+        $createdAt: row.$createdAt,
+        $updatedAt: row.$updatedAt,
       })),
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to list templates';
     console.error('Templates list error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to list templates' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

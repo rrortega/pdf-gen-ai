@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireOAuth } from '@/lib/oauth-middleware';
-import { generatePDF } from '@/lib/pdf-generator';
-import { getServerAppwriteTables, DATABASE_ID } from '@/lib/appwrite';
+import { PDFGenerator } from '@/lib/pdf-generator';
+import { DATABASE_ID, BUCKETS, getServerAppwriteStorage, getServerAppwriteTables } from '@/lib/appwrite';
+import { getAuthenticatedDatabases } from '@/lib/auth';
 import { ID } from 'node-appwrite';
+import { InputFile } from 'node-appwrite/file';
+import { COLLECTIONS } from '@/lib/appwrite';
 
 /**
  * Generate PDF from template
@@ -15,37 +18,21 @@ export async function POST(request: NextRequest) {
         // Try OAuth authentication first
         const oauthResult = await requireOAuth(request, ['documents:write']);
 
+        let tables: any;
         let userId: string;
 
         if ('error' in oauthResult) {
-            // OAuth failed, try API key authentication
-            const apiKey = request.headers.get('x-api-key');
-
-            if (!apiKey) {
-                return NextResponse.json(
-                    { error: 'Authentication required. Provide either OAuth token or API key.' },
-                    { status: 401 }
-                );
+            // OAuth failed, try helper that supports Session and API Key
+            const auth = await getAuthenticatedDatabases(request);
+            if (!auth) {
+                return oauthResult.error;
             }
-
-            // Verify API key and get user ID
-            const tables = getServerAppwriteTables();
-            const apiKeyDocs = await tables.listDocuments(
-                DATABASE_ID,
-                'api_keys',
-                [{ method: 'equal', attribute: 'key', values: [apiKey] }]
-            );
-
-            if (apiKeyDocs.documents.length === 0) {
-                return NextResponse.json(
-                    { error: 'Invalid API key' },
-                    { status: 401 }
-                );
-            }
-
-            userId = apiKeyDocs.documents[0].user_id;
+            // Use authenticated TablesDB instance
+            tables = auth.tables;
+            userId = auth.user.id;
         } else {
-            // OAuth authentication successful
+            // OAuth successful
+            tables = getServerAppwriteTables();
             userId = oauthResult.context.userId;
         }
 
@@ -60,13 +47,12 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Get template
-        const tables = getServerAppwriteTables();
-        const template = await tables.getDocument(
-            DATABASE_ID,
-            'templates',
-            template_id
-        );
+        // Get template using Tables API
+        const template = await tables.getRow({
+            databaseId: DATABASE_ID,
+            tableId: COLLECTIONS.TEMPLATES,
+            rowId: template_id
+        });
 
         if (!template) {
             return NextResponse.json(
@@ -76,24 +62,38 @@ export async function POST(request: NextRequest) {
         }
 
         // Generate PDF
-        const pdfBuffer = await generatePDF(template.html_content, data);
+        const pdfBuffer = await PDFGenerator.generatePDF(
+            template.html || '',
+            template.css || '',
+            data,
+            {
+                orientation: template.orientation as "portrait" | "landscape",
+                paperSize: template.paper_size,
+                margins: {
+                    top: template.margin_top,
+                    right: template.margin_right,
+                    bottom: template.margin_bottom,
+                    left: template.margin_left,
+                },
+            }
+        );
 
         // Save to storage and create document record
-        const storage = await import('@/lib/appwrite').then(m => m.getServerAppwriteStorage());
+        const storage = getServerAppwriteStorage();
         const pdfFilename = filename || `document-${Date.now()}.pdf`;
 
         const file = await storage.createFile(
-            'pdfs',
+            BUCKETS.PDFS,
             ID.unique(),
-            new File([pdfBuffer], pdfFilename, { type: 'application/pdf' })
+            InputFile.fromBuffer(pdfBuffer, pdfFilename)
         );
 
-        // Create document record
-        const document = await tables.createDocument(
-            DATABASE_ID,
-            'documents',
-            ID.unique(),
-            {
+        // Create document record using Tables API
+        const document = await tables.createRow({
+            databaseId: DATABASE_ID,
+            tableId: COLLECTIONS.DOCUMENTS,
+            rowId: ID.unique(),
+            data: {
                 user_id: userId,
                 template_id,
                 filename: pdfFilename,
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
                 size: pdfBuffer.length,
                 created_at: new Date().toISOString(),
             }
-        );
+        });
 
         // Generate download URL
         const downloadUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/v1/documents/${document.$id}/download`;
@@ -111,13 +111,14 @@ export async function POST(request: NextRequest) {
             document_id: document.$id,
             filename: pdfFilename,
             download_url: downloadUrl,
-            created_at: document.created_at,
+            created_at: document.created_at || document.$createdAt,
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to generate PDF';
         console.error('PDF generation error:', error);
         return NextResponse.json(
-            { error: error.message || 'Failed to generate PDF' },
+            { error: errorMessage },
             { status: 500 }
         );
     }

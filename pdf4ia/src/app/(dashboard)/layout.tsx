@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useI18n } from "@/hooks/useI18n";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { Logo } from "@/components/ui/logo";
 
 interface User {
     id: string;
@@ -131,7 +132,10 @@ export default function DashboardLayout({
                     {/* Header with Logo and Collapse Button */}
                     <div className="flex items-center justify-between p-4 border-b border-gray-500">
                         {!isCollapsed && (
-                            <h1 className="text-2xl font-bold text-white">PDFGenAI</h1>
+                            <Logo size="md" theme="dark" />
+                        )}
+                        {isCollapsed && (
+                            <Logo size="sm" showText={false} theme="dark" />
                         )}
                         <button
                             onClick={() => setIsCollapsed(!isCollapsed)}
@@ -241,7 +245,7 @@ export default function DashboardLayout({
                 </button>
                 <div className="flex flex-1 justify-between px-4">
                     <div className="flex flex-1 items-center">
-                        <h1 className="text-xl font-bold text-gray-900">PDFGenAI</h1>
+                        <Logo size="md" />
                     </div>
                 </div>
             </div>
@@ -269,7 +273,7 @@ export default function DashboardLayout({
 
                             <div className="flex flex-1 flex-col overflow-y-auto pt-5 pb-4">
                                 <div className="flex flex-shrink-0 items-center px-4 mb-5">
-                                    <h1 className="text-2xl font-bold text-white">PDFGenAI</h1>
+                                    <Logo size="md" theme="dark" />
                                 </div>
                                 <nav className="flex-1 space-y-1 px-2">
                                     {navigation.map((item) => {

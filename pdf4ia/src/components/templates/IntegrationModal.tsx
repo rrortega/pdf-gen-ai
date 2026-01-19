@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
+import Editor from "@monaco-editor/react";
 
 interface IntegrationModalProps {
     isOpen: boolean;
     onClose: () => void;
     templateId: string;
     templateTitle: string;
-    testData: any;
+    testData: Record<string, unknown>;
 }
 
 export default function IntegrationModal({
@@ -24,10 +25,10 @@ export default function IntegrationModal({
     if (!isOpen) return null;
 
     const domain = typeof window !== "undefined" ? window.location.origin : "";
-    const apiUrl = `${domain}/api/documents`;
+    const apiUrl = `${domain}/api/v1/generate`;
 
     // Decode or use testData
-    let parsedData: any = { example_key: "example_value" };
+    let parsedData: Record<string, unknown> = { example_key: "example_value" };
     if (testData) {
         if (typeof testData === 'object') {
             parsedData = testData;
@@ -47,16 +48,16 @@ export default function IntegrationModal({
     }
 
     const tabs = [
-        { id: 0, name: "Curl", icon: "🔗" },
-        { id: 1, name: "Node.js", icon: "🟢" },
-        { id: 2, name: "PHP", icon: "🐘" },
-        { id: 3, name: "Python", icon: "🐍" },
+        { id: 0, name: "Curl", icon: "🔗", language: "shell" },
+        { id: 1, name: "Node.js", icon: "🟢", language: "javascript" },
+        { id: 2, name: "PHP", icon: "🐘", language: "php" },
+        { id: 3, name: "Python", icon: "🐍", language: "python" },
     ];
 
     const generateCode = (lang: string) => {
         const body = JSON.stringify({
             template_id: templateId,
-            name: "document_name",
+            filename: "example-document",
             data: parsedData
         }, null, 2);
 
@@ -88,7 +89,7 @@ $apiKey = "YOUR_API_KEY";
 
 $data = array(
     "template_id" => "${templateId}",
-    "name" => "document_name",
+    "filename" => "example-document",
     "data" => json_decode('${JSON.stringify(parsedData)}', true)
 );
 
@@ -165,26 +166,43 @@ print(response.json())`;
                 </div>
 
                 {/* Code Area */}
-                <div className="flex-1 overflow-hidden flex flex-col bg-[#1e1e1e]">
-                    <div className="flex-1 overflow-auto p-6 scrollbar-thin scrollbar-thumb-gray-700">
-                        <div className="relative group">
-                            <pre className="text-sm text-gray-300 font-mono leading-relaxed">
-                                {generateCode(tabs[activeTab].name)}
-                            </pre>
-
-                            <button
-                                onClick={() => {
-                                    navigator.clipboard.writeText(generateCode(tabs[activeTab].name));
-                                }}
-                                className="absolute top-0 right-0 p-2 bg-gray-800 text-gray-400 rounded-lg hover:text-white transition-all shadow-lg border border-gray-700 hover:scale-105 active:scale-95"
-                                title={t("Copy to clipboard")}
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m-3 8h1m0-3h-1m1 3h1m-1-6h1" />
-                                </svg>
-                            </button>
-                        </div>
+                <div className="flex-1 overflow-hidden flex flex-col bg-[#1e1e1e] relative group">
+                    <div className="flex-1 min-h-[400px]">
+                        <Editor
+                            height="100%"
+                            defaultLanguage={tabs[activeTab].language}
+                            language={tabs[activeTab].language}
+                            value={generateCode(tabs[activeTab].name)}
+                            theme="vs-dark"
+                            options={{
+                                readOnly: true,
+                                minimap: { enabled: false },
+                                fontSize: 13,
+                                lineNumbers: "on",
+                                scrollBeyondLastLine: false,
+                                automaticLayout: true,
+                                folding: true,
+                                scrollbar: {
+                                    vertical: 'visible',
+                                    horizontal: 'visible'
+                                },
+                                padding: { top: 24, bottom: 24 }
+                            }}
+                        />
                     </div>
+
+                    <button
+                        onClick={() => {
+                            navigator.clipboard.writeText(generateCode(tabs[activeTab].name));
+                        }}
+                        className="absolute top-4 right-8 z-10 p-2 bg-gray-800 text-gray-400 rounded-lg hover:text-white transition-all shadow-lg border border-gray-700 hover:scale-105 active:scale-95 flex items-center gap-2"
+                        title={t("Copy to clipboard")}
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m-3 8h1m0-3h-1m1 3h1m-1-6h1" />
+                        </svg>
+                        <span className="text-xs font-semibold uppercase">{t("Copy")}</span>
+                    </button>
 
                     {/* Footer Info */}
                     <div className="p-4 bg-gray-900 border-t border-gray-800">

@@ -62,7 +62,9 @@ export const getServerAppwriteClient = () => {
 export const getServerAppwriteAccount = () => {
   return new sdk.Account(getServerAppwriteClient());
 };
-
+/**
+ * @deprecated use getServerAppwriteTables
+ */
 export const getServerAppwriteDatabases = () => {
   return new sdk.Databases(getServerAppwriteClient());
 };

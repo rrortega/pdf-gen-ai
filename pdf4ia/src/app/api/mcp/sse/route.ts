@@ -16,25 +16,28 @@ export async function GET(request: NextRequest) {
 
     const sessionId = Math.random().toString(36).substring(7);
 
-    // We create a mock response-like object for the transport
     const nextTransport = new SSEServerTransport('/api/mcp', {
-        write: async (message: any) => {
+        write: async (message: unknown) => {
             await writer.write(encoder.encode(`data: ${JSON.stringify(message)}\n\n`));
         },
         end: async () => {
             try {
                 await writer.close();
-            } catch (e) {
+            } catch {
                 // Ignore if already closed
             }
             transports.delete(sessionId);
         }
     } as any);
 
+    // Attach sessionId for later retrieval in tools
+    (nextTransport as any).sessionId = sessionId;
+
     transports.set(sessionId, nextTransport);
 
-    // Provide the request context to tools (crucial for auth)
-    await server.connect(nextTransport, { request } as any);
+    // Provide the request context to tools
+    // In latest SDK, connect only takes the transport
+    await server.connect(nextTransport);
 
     // Send the endpoint URL to the client as per MCP spec
     // Note: SSEServerTransport usually handles this, but we're in a custom environment

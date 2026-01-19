@@ -26,11 +26,16 @@ function getOrCreateServer() {
         "generate_pdf",
         {
             template_id: z.string().describe('The ID of the template to use'),
-            data: z.record(z.any()).describe('Dynamic data to inject (JSON object)'),
+            data: z.record(z.string(), z.any()).describe('Dynamic data to inject (JSON object)'),
             name: z.string().describe('Filename for the generated PDF'),
         },
         async ({ template_id, data, name }, extra) => {
-            const request = (extra as any).request as NextRequest;
+            const transport = (extra as { transport?: any }).transport;
+            // For now, we need to handle the case where we don't have the request directly
+            // In a more robust implementation, we'd use the transport's sessionId to look up the request
+            // For now, we'll try to get it from a common source if needed, or assume extra has it
+            const request = (extra as { request?: NextRequest }).request;
+            if (!request) throw new Error("Unauthorized: Request context missing");
             const auth = await getAuthenticatedDatabases(request);
             if (!auth) throw new Error("Unauthorized");
 
@@ -107,7 +112,8 @@ function getOrCreateServer() {
         "list_templates",
         {},
         async (_, extra) => {
-            const request = (extra as any).request as NextRequest;
+            const request = (extra as { request?: NextRequest }).request;
+            if (!request) throw new Error("Unauthorized: Request context missing");
             const auth = await getAuthenticatedDatabases(request);
             if (!auth) throw new Error("Unauthorized");
 

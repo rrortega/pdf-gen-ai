@@ -13,7 +13,7 @@ export interface OAuthContext {
  */
 export async function verifyOAuthToken(request: NextRequest): Promise<OAuthContext | null> {
     const authHeader = request.headers.get('authorization');
-    const accessToken = parseBearerToken(authHeader);
+    const accessToken = parseBearerToken(authHeader ?? undefined);
 
     if (!accessToken) {
         return null;

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerAppwriteDatabases, DATABASE_ID } from '@/lib/appwrite';
-import { ID, Permission, Role } from 'node-appwrite';
+import { Permission, Role, IndexType } from 'node-appwrite';
 
 /**
  * Setup OAuth collections in Appwrite
@@ -37,12 +37,13 @@ export async function POST() {
             await databases.createStringAttribute(DATABASE_ID, 'oauth_clients', 'updated_at', 255, true);
 
             // Create indexes
-            await databases.createIndex(DATABASE_ID, 'oauth_clients', 'client_id_idx', 'key', ['client_id'], ['ASC']);
-            await databases.createIndex(DATABASE_ID, 'oauth_clients', 'user_id_idx', 'key', ['user_id'], ['ASC']);
+            await databases.createIndex(DATABASE_ID, 'oauth_clients', 'client_id_idx', IndexType.Key, ['client_id'], ['ASC']);
+            await databases.createIndex(DATABASE_ID, 'oauth_clients', 'user_id_idx', IndexType.Key, ['user_id'], ['ASC']);
 
             collections.push({ name: 'oauth_clients', id: clientsCollection.$id, status: 'created' });
-        } catch (error: any) {
-            if (error.code === 409) {
+        } catch (error: unknown) {
+            const err = error as { code?: number; message?: string };
+            if (err.code === 409) {
                 collections.push({ name: 'oauth_clients', status: 'already exists' });
             } else {
                 throw error;
@@ -72,13 +73,14 @@ export async function POST() {
             await databases.createStringAttribute(DATABASE_ID, 'oauth_tokens', 'scopes', 5000, true, undefined, true);
             await databases.createStringAttribute(DATABASE_ID, 'oauth_tokens', 'created_at', 255, true);
 
-            await databases.createIndex(DATABASE_ID, 'oauth_tokens', 'access_token_idx', 'key', ['access_token'], ['ASC']);
-            await databases.createIndex(DATABASE_ID, 'oauth_tokens', 'refresh_token_idx', 'key', ['refresh_token'], ['ASC']);
-            await databases.createIndex(DATABASE_ID, 'oauth_tokens', 'user_client_idx', 'key', ['user_id', 'client_id'], ['ASC', 'ASC']);
+            await databases.createIndex(DATABASE_ID, 'oauth_tokens', 'access_token_idx', IndexType.Key, ['access_token'], ['ASC']);
+            await databases.createIndex(DATABASE_ID, 'oauth_tokens', 'refresh_token_idx', IndexType.Key, ['refresh_token'], ['ASC']);
+            await databases.createIndex(DATABASE_ID, 'oauth_tokens', 'user_client_idx', IndexType.Key, ['user_id', 'client_id'], ['ASC', 'ASC']);
 
             collections.push({ name: 'oauth_tokens', id: tokensCollection.$id, status: 'created' });
-        } catch (error: any) {
-            if (error.code === 409) {
+        } catch (error: unknown) {
+            const err = error as { code?: number; message?: string };
+            if (err.code === 409) {
                 collections.push({ name: 'oauth_tokens', status: 'already exists' });
             } else {
                 throw error;
@@ -109,11 +111,12 @@ export async function POST() {
             await databases.createStringAttribute(DATABASE_ID, 'oauth_codes', 'expires_at', 255, true);
             await databases.createStringAttribute(DATABASE_ID, 'oauth_codes', 'created_at', 255, true);
 
-            await databases.createIndex(DATABASE_ID, 'oauth_codes', 'code_idx', 'key', ['code'], ['ASC']);
+            await databases.createIndex(DATABASE_ID, 'oauth_codes', 'code_idx', IndexType.Key, ['code'], ['ASC']);
 
             collections.push({ name: 'oauth_codes', id: codesCollection.$id, status: 'created' });
-        } catch (error: any) {
-            if (error.code === 409) {
+        } catch (error: unknown) {
+            const err = error as { code?: number; message?: string };
+            if (err.code === 409) {
                 collections.push({ name: 'oauth_codes', status: 'already exists' });
             } else {
                 throw error;
@@ -125,12 +128,13 @@ export async function POST() {
             message: 'OAuth collections setup completed',
             collections,
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const err = error as { message?: string };
         console.error('OAuth setup error:', error);
         return NextResponse.json(
             {
                 success: false,
-                error: error.message || 'Failed to setup OAuth collections',
+                error: err.message || 'Failed to setup OAuth collections',
             },
             { status: 500 }
         );

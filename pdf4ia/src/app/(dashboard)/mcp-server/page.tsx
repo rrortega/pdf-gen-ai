@@ -14,6 +14,11 @@ export default function MCPServerPage() {
     const [copiedSection, setCopiedSection] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'claude' | 'vscode' | 'n8n' | 'langchain'>('claude');
 
+    // Get the app URL from environment or use localhost as fallback
+    const appUrl = typeof window !== 'undefined'
+        ? window.location.origin
+        : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
     const copyToClipboard = (text: string, section: string) => {
         navigator.clipboard.writeText(text);
         setCopiedSection(section);
@@ -25,10 +30,10 @@ export default function MCPServerPage() {
     "pdfgenai": {
       "command": "node",
       "args": [
-        "/ruta/completa/a/pdf4ia/mcp-server/index.js"
+        "/ruta/absoluta/al/mcp-server/index.js"
       ],
       "env": {
-        "PDFGENAI_API_URL": "http://localhost:3000",
+        "PDFGENAI_API_URL": "${appUrl}",
         "PDFGENAI_API_KEY": "tu-api-key-aqui"
       }
     }
@@ -39,9 +44,9 @@ export default function MCPServerPage() {
   "mcp.servers": {
     "pdfgenai": {
       "command": "node",
-      "args": ["/ruta/completa/a/pdf4ia/mcp-server/index.js"],
+      "args": ["/ruta/absoluta/al/mcp-server/index.js"],
       "env": {
-        "PDFGENAI_API_URL": "http://localhost:3000",
+        "PDFGENAI_API_URL": "${appUrl}",
         "PDFGENAI_API_KEY": "tu-api-key-aqui"
       }
     }
@@ -51,9 +56,9 @@ export default function MCPServerPage() {
     const n8nConfigExample = `// En N8N, crea un nodo MCP Tool con:
 {
   "serverUrl": "stdio://node",
-  "args": ["/ruta/completa/a/pdf4ia/mcp-server/index.js"],
+  "args": ["/ruta/absoluta/al/mcp-server/index.js"],
   "env": {
-    "PDFGENAI_API_URL": "http://localhost:3000",
+    "PDFGENAI_API_URL": "${appUrl}",
     "PDFGENAI_API_KEY": "tu-api-key-aqui"
   }
 }`;
@@ -64,9 +69,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 // Crear cliente MCP
 const transport = new StdioClientTransport({
   command: 'node',
-  args: ['/ruta/completa/a/pdf4ia/mcp-server/index.js'],
+  args: ['/ruta/absoluta/al/mcp-server/index.js'],
   env: {
-    PDFGENAI_API_URL: 'http://localhost:3000',
+    PDFGENAI_API_URL: '${appUrl}',
     PDFGENAI_API_KEY: 'tu-api-key-aqui'
   }
 });

@@ -1,20 +1,17 @@
 import { getServerAppwriteTables, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite";
 import Handlebars from "handlebars";
-import { notFound } from "next/navigation";
 import { registerHbsHelpers } from "@/lib/hbs";
+import { NextRequest, NextResponse } from "next/server";
 
-interface PageProps {
-    params: Promise<{
-        id: string;
-    }>;
-}
-
-export default async function PreviewHtmlPage({ params }: PageProps) {
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
     const resolvedParams = await params;
     const id = resolvedParams?.id;
 
     if (!id) {
-        notFound();
+        return new NextResponse("Not Found", { status: 404 });
     }
 
     const tables = getServerAppwriteTables();
@@ -24,13 +21,13 @@ export default async function PreviewHtmlPage({ params }: PageProps) {
         databaseId: DATABASE_ID,
         tableId: COLLECTIONS.TEMPLATES,
         rowId: id,
-    }).catch((err) => {
+    }).catch((err: unknown) => {
         console.error("Error fetching template row for preview:", err);
         return null;
     });
 
     if (!template) {
-        notFound();
+        return new NextResponse("Template Not Found", { status: 404 });
     }
 
     // Get HTML, CSS, and test data

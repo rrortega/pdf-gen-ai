@@ -18,7 +18,7 @@ export function registerHbsHelpers() {
 
     // formatMoney: formatea números como dinero
     if (!Handlebars.helpers.formatMoney) {
-        Handlebars.registerHelper("formatMoney", function (value: number | string, options: any) {
+        Handlebars.registerHelper("formatMoney", function (this: unknown, value: number | string, options: Handlebars.HelperOptions) {
             const num = Number(value);
             if (!Number.isFinite(num)) return value;
 
@@ -42,18 +42,83 @@ export function registerHbsHelpers() {
         });
     }
 
+    // formatNumber: formatea números sin prefijos
+    if (!Handlebars.helpers.formatNumber) {
+        Handlebars.registerHelper("formatNumber", function (this: unknown, value: number | string, options: Handlebars.HelperOptions) {
+            const num = Number(value);
+            if (!Number.isFinite(num)) return value;
+
+            const precision = options.hash.precision !== undefined ? options.hash.precision : 2;
+            const thousands = options.hash.thousands || ",";
+            const decimal = options.hash.decimal || ".";
+
+            const fixed = num.toFixed(precision);
+            const parts = fixed.split(".");
+            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousands);
+            return parts.join(decimal);
+        });
+    }
+
+    // formatPercent: formatea como porcentaje (multiplica por 100)
+    if (!Handlebars.helpers.formatPercent) {
+        Handlebars.registerHelper("formatPercent", function (this: unknown, value: number | string, options: Handlebars.HelperOptions) {
+            const num = Number(value);
+            if (!Number.isFinite(num)) return value;
+
+            const precision = options.hash.precision !== undefined ? options.hash.precision : 0;
+            return (num * 100).toFixed(precision) + "%";
+        });
+    }
+
     // Comparison helpers
+    // Comparison helpers
+    if (!Handlebars.helpers.isEven) {
+        Handlebars.registerHelper("isEven", (value: unknown) => {
+            const num = Number(value);
+            return !isNaN(num) && num % 2 === 0;
+        });
+    }
+
     if (!Handlebars.helpers.eq) {
         Handlebars.registerHelper("eq", (a, b) => a === b);
     }
     if (!Handlebars.helpers.neq) {
         Handlebars.registerHelper("neq", (a, b) => a !== b);
     }
+    if (!Handlebars.helpers.notEq) {
+        Handlebars.registerHelper("notEq", (a, b) => a !== b);
+    }
     if (!Handlebars.helpers.gt) {
         Handlebars.registerHelper("gt", (a, b) => a > b);
     }
     if (!Handlebars.helpers.lt) {
         Handlebars.registerHelper("lt", (a: number, b: number) => a < b);
+    }
+    if (!Handlebars.helpers.gte) {
+        Handlebars.registerHelper("gte", (a: number, b: number) => a >= b);
+    }
+    if (!Handlebars.helpers.lte) {
+        Handlebars.registerHelper("lte", (a: number, b: number) => a <= b);
+    }
+
+    // Logical helpers
+    if (!Handlebars.helpers.and) {
+        Handlebars.registerHelper("and", (...args: unknown[]) => {
+            // Remove the options object (last argument in Handlebars helpers)
+            const values = args.slice(0, -1);
+            return values.every(Boolean);
+        });
+    }
+
+    if (!Handlebars.helpers.or) {
+        Handlebars.registerHelper("or", (...args: unknown[]) => {
+            const values = args.slice(0, -1);
+            return values.some(Boolean);
+        });
+    }
+
+    if (!Handlebars.helpers.not) {
+        Handlebars.registerHelper("not", (value: unknown) => !value);
     }
 
     // Math helpers
@@ -64,21 +129,87 @@ export function registerHbsHelpers() {
         Handlebars.registerHelper("sub", (a: number, b: number) => Number(a) - Number(b));
     }
 
+    // Assignment helper (to emulate liquid {% assign %})
+    if (!Handlebars.helpers.assign) {
+        const assignHelper = function (this: Record<string, unknown>, name: string, value: unknown, options: Handlebars.HelperOptions) {
+            // Handle block usage: {{#assign "name"}}value{{/assign}}
+            if (!value && options && options.fn) {
+                value = options.fn(this);
+            }
+
+            // Set the value in the current context
+            this[name] = value;
+
+            // Return nothing
+            return "";
+        };
+        Handlebars.registerHelper("assign", assignHelper);
+        Handlebars.registerHelper("set", assignHelper);
+    }
+
+    // Math helper: {{math a "+" b}}
+    if (!Handlebars.helpers.math) {
+        Handlebars.registerHelper("math", (lvalue: unknown, operator: string, rvalue: unknown) => {
+            const l = Number(lvalue);
+            const r = Number(rvalue);
+
+            if (isNaN(l) || isNaN(r)) return 0;
+
+            switch (operator) {
+                case "+": return l + r;
+                case "-": return l - r;
+                case "*": return l * r;
+                case "/": return l / r;
+                case "%": return l % r;
+                default: return 0;
+            }
+        });
+    }
+
     // String helpers
     if (!Handlebars.helpers.uppercase) {
         Handlebars.registerHelper("uppercase", (str: string) => String(str).toUpperCase());
     }
+    if (!Handlebars.helpers.upcase) {
+        Handlebars.registerHelper("upcase", (str: string) => String(str).toUpperCase());
+    }
     if (!Handlebars.helpers.lowercase) {
         Handlebars.registerHelper("lowercase", (str: string) => String(str).toLowerCase());
     }
-
-    // Date/Currency helpers
-    if (!Handlebars.helpers.date) {
-        Handlebars.registerHelper("date", (date: string | number | Date, format?: string) => {
-            const d = new Date(date);
-            return typeof format === 'string' ? format : d.toLocaleDateString();
+    if (!Handlebars.helpers.strip) {
+        Handlebars.registerHelper("strip", (str: string) => typeof str === 'string' ? str.trim() : str);
+    }
+    if (!Handlebars.helpers.newline_to_br) {
+        Handlebars.registerHelper("newline_to_br", (str: string) => {
+            if (typeof str !== 'string') return str;
+            const escaped = Handlebars.Utils.escapeExpression(str);
+            return new Handlebars.SafeString(escaped.replace(/\r?\n|&#10;/g, '<br />'));
         });
     }
+
+    // Date/Currency helpers
+    // Updated date helper with liquid-style format support
+    Handlebars.registerHelper("date", (date: string | number | Date, format?: string) => {
+        if (!date) return "";
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return date;
+
+        if (typeof format !== 'string') {
+            return d.toLocaleDateString();
+        }
+
+        const map: Record<string, string> = {
+            '%m': String(d.getMonth() + 1).padStart(2, '0'),
+            '%d': String(d.getDate()).padStart(2, '0'),
+            '%Y': String(d.getFullYear()),
+            '%H': String(d.getHours()).padStart(2, '0'),
+            '%M': String(d.getMinutes()).padStart(2, '0'),
+            '%S': String(d.getSeconds()).padStart(2, '0'),
+            '%y': String(d.getFullYear()).slice(-2),
+        };
+
+        return format.replace(/%[mYdHMSy]/g, (match) => map[match] || match);
+    });
 
     if (!Handlebars.helpers.currency) {
         Handlebars.registerHelper("currency", (amount: number, currency: string = "USD") => {

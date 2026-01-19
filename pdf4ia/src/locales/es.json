@@ -87,6 +87,7 @@
     "Save": "Guardar",
     "Cancel": "Cancelar",
     "Update": "Actualizar",
+    "Blank Sheet": "Plantilla en Blanco",
     "Delete Template": "Eliminar Plantilla",
     "Are you sure you want to delete this template?": "¿Estás seguro de que quieres eliminar esta plantilla?",
     "This action cannot be undone.": "Esta acción no se puede deshacer.",
@@ -150,8 +151,6 @@
     "Failed to save template": "Error al guardar la plantilla",
     "Generating...": "Generando...",
     "Preview": "Vista previa",
-    "Failed to generate preview": "Error al generar vista previa",
-    "Generating preview...": "Generando vista previa...",
     "Click 'Preview' to generate PDF preview": "Haz clic en 'Vista previa' para generar el PDF",
     "No preview available": "Vista previa no disponible",
     "Untitled Template": "Plantilla sin título",
@@ -188,5 +187,9 @@
     "Please type \"confirm delete\" to confirm:": "Por favor escribe \"confirmar eliminación\" para confirmar:",
     "confirm delete": "confirmar eliminación",
     "Delete Formally": "Eliminar Definitivamente",
-    "An error occurred while deleting the template": "Ocurrió un error al eliminar la plantilla"
+    "An error occurred while deleting the template": "Ocurrió un error al eliminar la plantilla",
+    "Integration Code": "Código de Integración",
+    "Important": "Importante",
+    "Replace YOUR_API_KEY with your actual secure token.": "Reemplaza YOUR_API_KEY con tu token de seguridad real.",
+    "Integration": "Integración"
 }

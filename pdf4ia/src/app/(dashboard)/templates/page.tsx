@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/hooks/useI18n";
+import ThumbnailImage from "@/components/templates/ThumbnailImage";
+import IntegrationModal from "@/components/templates/IntegrationModal";
 
 interface Template {
     $id: string;
@@ -10,7 +12,7 @@ interface Template {
     tags: string[];
     css: string;
     html: string;
-    testData: string;
+    test_data: any;
     $createdAt: string;
 }
 
@@ -87,46 +89,6 @@ function DeleteConfirmationModal({
     );
 }
 
-function ThumbnailImage({ templateId, title }: { templateId: string; title: string }) {
-    const [hasError, setHasError] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
-
-    const imageUrl = `/api/v1/templates/${templateId}/thumbnail`;
-    const fallbackUrl = `/api/v1/templates/${templateId}/html`;
-
-    return (
-        <div className="w-full h-full relative border border-gray-200 shadow-sm rounded-sm overflow-hidden">
-            {!hasError ? (
-                <>
-                    {isLoading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                        </div>
-                    )}
-                    <img
-                        src={imageUrl}
-                        alt={title}
-                        className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-                        onLoad={() => setIsLoading(false)}
-                        onError={() => {
-                            setHasError(true);
-                            setIsLoading(false);
-                        }}
-                    />
-                </>
-            ) : (
-                <div className="w-full h-full overflow-hidden pointer-events-none select-none bg-white">
-                    <iframe
-                        src={fallbackUrl}
-                        className="border-0 rounded-sm w-[400%] h-[400%] origin-top-left scale-[0.25]"
-                        scrolling="no"
-                        tabIndex={-1}
-                    />
-                </div>
-            )}
-        </div>
-    );
-}
 
 export default function TemplatesPage() {
     const router = useRouter();
@@ -137,7 +99,9 @@ export default function TemplatesPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [templateToDelete, setTemplateToDelete] = useState<Template | null>(null);
+    const [templateForIntegration, setTemplateForIntegration] = useState<Template | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
 
     const fetchTemplates = useCallback(async () => {
         try {
@@ -201,6 +165,11 @@ export default function TemplatesPage() {
     const handleDeleteClick = (template: Template) => {
         setTemplateToDelete(template);
         setIsDeleteModalOpen(true);
+    };
+
+    const handleIntegrationClick = (template: Template) => {
+        setTemplateForIntegration(template);
+        setIsIntegrationModalOpen(true);
     };
 
     const handleConfirmDelete = async () => {
@@ -331,7 +300,7 @@ export default function TemplatesPage() {
                         {filteredTemplates.map((template) => (
                             <div
                                 key={template.$id}
-                                className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow flex items-center justify-between group"
+                                className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md hover:border-blue-600 transition-all flex items-center justify-between group"
                             >
                                 <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
                                     {/* Template Thumbnail */}
@@ -374,6 +343,15 @@ export default function TemplatesPage() {
 
                                 <div className="flex items-center gap-2">
                                     <button
+                                        onClick={() => handleIntegrationClick(template)}
+                                        className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                        title={t("Integration Code")}
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                                        </svg>
+                                    </button>
+                                    <button
                                         onClick={() => router.push(`/templates/${template.$id}/edit`)}
                                         className="p-2 text-gray-600 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                                         title={t("Edit")}
@@ -407,6 +385,17 @@ export default function TemplatesPage() {
                 onConfirm={handleConfirmDelete}
                 templateTitle={templateToDelete?.title || ""}
                 t={t}
+            />
+
+            <IntegrationModal
+                isOpen={isIntegrationModalOpen}
+                onClose={() => {
+                    setIsIntegrationModalOpen(false);
+                    setTemplateForIntegration(null);
+                }}
+                templateId={templateForIntegration?.$id || ""}
+                templateTitle={templateForIntegration?.title || ""}
+                testData={templateForIntegration?.test_data || ""}
             />
         </div>
     );

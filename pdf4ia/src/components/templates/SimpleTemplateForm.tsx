@@ -75,9 +75,7 @@ export default function SimpleTemplateForm({
                     placeholder={t("Add tag")}
                     disabled={isLoading}
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                    {t("Press Enter to add tags")}
-                </p>
+
             </div>
         </form>
     );

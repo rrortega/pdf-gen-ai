@@ -57,7 +57,7 @@ export default function TemplateSettingsForm({ data, onChange }: TemplateSetting
                             type="text"
                             value={formData.title}
                             onChange={(e) => handleChange("title", e.target.value)}
-                            className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                            className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-gray-500"
                         />
                     </div>
 
@@ -74,7 +74,7 @@ export default function TemplateSettingsForm({ data, onChange }: TemplateSetting
                                     .filter(Boolean);
                                 handleChange("tags", tags);
                             }}
-                            className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                            className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-gray-500"
                             placeholder="invoice, internal, personal"
                         />
                         <p className="text-xs text-gray-500 mt-1">{t("Each tag must be a single word without spaces")}</p>
@@ -87,7 +87,7 @@ export default function TemplateSettingsForm({ data, onChange }: TemplateSetting
                             <select
                                 value={formData.orientation}
                                 onChange={(e) => handleChange("orientation", e.target.value)}
-                                className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-gray-500"
                             >
                                 <option value="portrait">{t("Portrait")}</option>
                                 <option value="landscape">{t("Landscape")}</option>
@@ -100,7 +100,7 @@ export default function TemplateSettingsForm({ data, onChange }: TemplateSetting
                             <select
                                 value={formData.paperSize}
                                 onChange={(e) => handleChange("paperSize", e.target.value)}
-                                className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-gray-500"
                             >
                                 {paperSizes.map(size => (
                                     <option key={size} value={size}>{size}</option>
@@ -119,7 +119,7 @@ export default function TemplateSettingsForm({ data, onChange }: TemplateSetting
                                     type="text"
                                     value={formData.margins.top}
                                     onChange={(e) => handleMarginChange("top", e.target.value)}
-                                    className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-blue-500"
+                                    className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-gray-500"
                                     placeholder="20px"
                                 />
                             </div>
@@ -129,7 +129,7 @@ export default function TemplateSettingsForm({ data, onChange }: TemplateSetting
                                     type="text"
                                     value={formData.margins.right}
                                     onChange={(e) => handleMarginChange("right", e.target.value)}
-                                    className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-blue-500"
+                                    className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-gray-500"
                                     placeholder="20px"
                                 />
                             </div>
@@ -139,7 +139,7 @@ export default function TemplateSettingsForm({ data, onChange }: TemplateSetting
                                     type="text"
                                     value={formData.margins.bottom}
                                     onChange={(e) => handleMarginChange("bottom", e.target.value)}
-                                    className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-blue-500"
+                                    className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-gray-500"
                                     placeholder="20px"
                                 />
                             </div>
@@ -149,7 +149,7 @@ export default function TemplateSettingsForm({ data, onChange }: TemplateSetting
                                     type="text"
                                     value={formData.margins.left}
                                     onChange={(e) => handleMarginChange("left", e.target.value)}
-                                    className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-blue-500"
+                                    className="w-full h-10 bg-[#2d2d30] border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-gray-500"
                                     placeholder="20px"
                                 />
                             </div>

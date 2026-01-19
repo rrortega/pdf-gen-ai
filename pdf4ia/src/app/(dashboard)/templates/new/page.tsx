@@ -75,7 +75,7 @@ export default function NewTemplatePage() {
 
     return (
         <div className="min-h-screen bg-gray-50 p-6 w-full">
-            <div className="max-w-[1600px] mx-auto">
+            <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
                     <button
@@ -92,17 +92,17 @@ export default function NewTemplatePage() {
 
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-4xl font-extrabold text-gray-900 transition-all">
+                            <h1 className="text-3xl font-bold text-gray-900">
                                 {t("Create New Template")}
                             </h1>
-                            <p className="text-gray-500 mt-2 text-lg">
+                            <p className="text-gray-500 mt-2">
                                 {t("Choose a base and provide a name to get started")}
                             </p>
                         </div>
                         <button
                             onClick={() => (document.getElementById('template-form') as HTMLFormElement)?.requestSubmit()}
                             disabled={isLoading}
-                            className="flex items-center gap-2 bg-blue-600 text-white px-8 py-3.5 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-lg"
+                            className="flex items-center gap-2 bg-gray-900 text-white px-6 py-2.5 rounded-lg hover:bg-gray-950 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -112,48 +112,43 @@ export default function NewTemplatePage() {
                     </div>
                 </div>
 
-                {/* Main Content Area */}
-                <div className="grid grid-cols-1 gap-10">
-                    {/* Error Message */}
-                    {error && (
-                        <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-6 py-4 rounded-lg shadow-sm animate-in fade-in slide-in-from-top-2">
-                            <div className="flex items-center gap-3">
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
-                                <span className="font-medium">{error}</span>
-                            </div>
+                {/* Error Message */}
+                {error && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+                        <div className="flex items-center gap-3">
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            <span className="font-medium">{error}</span>
                         </div>
-                    )}
+                    </div>
+                )}
 
-                    <div className="flex flex-col gap-10">
-                        {/* Form Card (Centered Narrowly) */}
-                        <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 p-10">
-                            <SimpleTemplateForm onSubmit={handleSubmit} isLoading={isLoading} />
+                {/* Form Section - Left Aligned */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                    <SimpleTemplateForm onSubmit={handleSubmit} isLoading={isLoading} />
+                </div>
 
-                            {/* Base Selection (Part of the form experience) */}
-                            <div className="mt-10 border-t border-gray-100 pt-10">
-                                <label className="block text-sm font-semibold text-gray-700 mb-6 uppercase tracking-wider">
-                                    {t("Select Base Template")}
-                                </label>
-                                <div className="flex flex-wrap gap-6 justify-center">
-                                    <BaseTemplateCard
-                                        title="Blank Sheet"
-                                        isSelected={selectedBaseId === null}
-                                        onSelect={() => setSelectedBaseId(null)}
-                                    />
-                                    {baseTemplates.map((template) => (
-                                        <BaseTemplateCard
-                                            key={template.$id}
-                                            templateId={template.$id}
-                                            title={template.title}
-                                            isSelected={selectedBaseId === template.$id}
-                                            onSelect={() => setSelectedBaseId(template.$id)}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
+                {/* Base Selection - Full Width Grid */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <label className="block text-sm font-semibold text-gray-700 mb-6 uppercase tracking-wider">
+                        {t("Select Base Template")}
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6 gap-6">
+                        <BaseTemplateCard
+                            title="Blank Sheet"
+                            isSelected={selectedBaseId === null}
+                            onSelect={() => setSelectedBaseId(null)}
+                        />
+                        {baseTemplates.map((template) => (
+                            <BaseTemplateCard
+                                key={template.$id}
+                                templateId={template.$id}
+                                title={template.title}
+                                isSelected={selectedBaseId === template.$id}
+                                onSelect={() => setSelectedBaseId(template.$id)}
+                            />
+                        ))}
                     </div>
                 </div>
             </div>

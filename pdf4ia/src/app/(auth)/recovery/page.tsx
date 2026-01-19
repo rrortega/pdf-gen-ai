@@ -70,7 +70,7 @@ export default function RecoveryPage() {
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-gray-500 focus:ring-2 focus:ring-gray-500 focus:outline-none"
                         required
                     />
                 </div>
@@ -78,14 +78,14 @@ export default function RecoveryPage() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
+                    className="w-full rounded-lg bg-gray-900 px-4 py-3 font-semibold text-white hover:bg-gray-950 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors"
                 >
                     {loading ? t("Sending...") : t("Send recovery email")}
                 </button>
             </form>
 
             <div className="mt-6 text-center">
-                <Link href="/login" className="text-sm font-medium text-blue-600 hover:text-blue-500">
+                <Link href="/login" className="text-sm font-medium text-gray-900 hover:text-gray-500">
                     {t("Back to sign in")}
                 </Link>
             </div>

@@ -11,12 +11,12 @@ export default function LanguageSwitcher({ variant = "default" }: LanguageSwitch
 
     if (variant === "sidebar") {
         return (
-            <div className="flex w-full rounded-md overflow-hidden border border-blue-500">
+            <div className="flex w-full rounded-md overflow-hidden border border-gray-500">
                 <button
                     onClick={() => setLocale("en")}
                     className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors ${locale === "en"
-                            ? "bg-white text-blue-600"
-                            : "bg-blue-700 text-white hover:bg-blue-600"
+                            ? "bg-white text-gray-900"
+                            : "bg-gray-950 text-white hover:bg-gray-900"
                         }`}
                 >
                     <span className="text-base">🇺🇸</span>
@@ -25,8 +25,8 @@ export default function LanguageSwitcher({ variant = "default" }: LanguageSwitch
                 <button
                     onClick={() => setLocale("es")}
                     className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors ${locale === "es"
-                            ? "bg-white text-blue-600"
-                            : "bg-blue-700 text-white hover:bg-blue-600"
+                            ? "bg-white text-gray-900"
+                            : "bg-gray-950 text-white hover:bg-gray-900"
                         }`}
                 >
                     <span className="text-base">🇪🇸</span>
@@ -41,7 +41,7 @@ export default function LanguageSwitcher({ variant = "default" }: LanguageSwitch
             <button
                 onClick={() => setLocale("en")}
                 className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${locale === "en"
-                        ? "bg-blue-600 text-white"
+                        ? "bg-gray-900 text-white"
                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                     }`}
             >
@@ -50,7 +50,7 @@ export default function LanguageSwitcher({ variant = "default" }: LanguageSwitch
             <button
                 onClick={() => setLocale("es")}
                 className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${locale === "es"
-                        ? "bg-blue-600 text-white"
+                        ? "bg-gray-900 text-white"
                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                     }`}
             >

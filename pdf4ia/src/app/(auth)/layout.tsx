@@ -26,11 +26,11 @@ export default function AuthLayout({
             </div>
 
             {/* Right side - Preview carousel (hidden on mobile) */}
-            <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 to-purple-700 items-center justify-center p-12">
+            <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-gray-900 to-purple-700 items-center justify-center p-12">
                 <div className="max-w-2xl">
                     <div className="text-white">
                         <h1 className="text-4xl font-bold mb-6">{t("PDFGenAI")}</h1>
-                        <p className="text-xl mb-8 text-blue-100">
+                        <p className="text-xl mb-8 text-gray-100">
                             {t("Generate professional PDFs with AI-powered templates")}
                         </p>
 
@@ -44,7 +44,7 @@ export default function AuthLayout({
                                 </div>
                                 <div>
                                     <h3 className="font-semibold text-lg mb-1">{t("Smart Templates")}</h3>
-                                    <p className="text-blue-100">{t("Create and manage reusable PDF templates")}</p>
+                                    <p className="text-gray-100">{t("Create and manage reusable PDF templates")}</p>
                                 </div>
                             </div>
 
@@ -56,7 +56,7 @@ export default function AuthLayout({
                                 </div>
                                 <div>
                                     <h3 className="font-semibold text-lg mb-1">{t("Fast Generation")}</h3>
-                                    <p className="text-blue-100">{t("Generate PDFs in seconds with dynamic data")}</p>
+                                    <p className="text-gray-100">{t("Generate PDFs in seconds with dynamic data")}</p>
                                 </div>
                             </div>
 
@@ -68,7 +68,7 @@ export default function AuthLayout({
                                 </div>
                                 <div>
                                     <h3 className="font-semibold text-lg mb-1">{t("Secure Storage")}</h3>
-                                    <p className="text-blue-100">{t("Your documents are safely stored and encrypted")}</p>
+                                    <p className="text-gray-100">{t("Your documents are safely stored and encrypted")}</p>
                                 </div>
                             </div>
                         </div>

@@ -120,7 +120,7 @@ export default function TemplateForm({
                             type="button"
                             onClick={() => setActiveTab(tab.id)}
                             className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
-                                ? "border-blue-600 text-blue-600"
+                                ? "border-gray-900 text-gray-900"
                                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                                 }`}
                         >
@@ -145,7 +145,7 @@ export default function TemplateForm({
                                 id="title"
                                 value={formData.title}
                                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                className={`w-full px-4 py-3 border rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${errors.title ? "border-red-500" : "border-gray-300"
+                                className={`w-full px-4 py-3 border rounded-lg text-gray-900 focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none ${errors.title ? "border-red-500" : "border-gray-300"
                                     }`}
                                 placeholder={t("Template Name")}
                                 disabled={isLoading}
@@ -241,7 +241,7 @@ export default function TemplateForm({
                         {isGeneratingPreview && (
                             <div className="flex items-center justify-center py-12">
                                 <div className="text-center">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
                                     <p className="text-gray-600">{t("Generating preview...")}</p>
                                 </div>
                             </div>
@@ -255,7 +255,7 @@ export default function TemplateForm({
                                         <a
                                             href={previewUrl}
                                             download="preview.pdf"
-                                            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                                            className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-950 transition-colors text-sm"
                                         >
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

@@ -149,7 +149,7 @@ export default function DocumentsPage() {
     if (loading) {
         return (
             <div className="flex min-h-screen items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
                 <div className="ml-3 text-lg text-gray-600">{t("Loading...")}</div>
             </div>
         );
@@ -169,7 +169,7 @@ export default function DocumentsPage() {
                             placeholder={t("Search documents...")}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900 shadow-sm"
+                            className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none text-gray-900 shadow-sm"
                         />
                         <svg
                             className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
@@ -204,7 +204,7 @@ export default function DocumentsPage() {
                                 className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all flex items-center justify-between group"
                             >
                                 <div className="flex items-center gap-4 min-w-0 flex-1">
-                                    <div className="p-3 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                    <div className="p-3 bg-gray-50 text-gray-900 rounded-lg group-hover:bg-gray-900 group-hover:text-white transition-colors">
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                         </svg>
@@ -243,7 +243,7 @@ export default function DocumentsPage() {
                                     <button
                                         onClick={() => handleDownload(doc)}
                                         disabled={doc.status !== 'completed'}
-                                        className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                        className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                                         title={t("Download")}
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

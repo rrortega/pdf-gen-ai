@@ -122,7 +122,7 @@ export default function EditTemplatePage() {
 
             // Switch to DATA
             setActiveTab(2);
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 250));
 
             // Finish initialization
             setIsInitializing(false);
@@ -424,7 +424,7 @@ h1 {
                             <span className="text-xs font-medium text-gray-400 capitalize">{t("Auto-save")}</span>
                             <button
                                 onClick={() => setIsAutoSaveEnabled(!isAutoSaveEnabled)}
-                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${isAutoSaveEnabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${isAutoSaveEnabled ? 'bg-gray-900' : 'bg-gray-600'}`}
                             >
                                 <span
                                     className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isAutoSaveEnabled ? 'translate-x-5' : 'translate-x-0.5'}`}
@@ -433,7 +433,7 @@ h1 {
                         </div>
                         {isAutoSaving && (
                             <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-700">
-                                <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></span>
+                                <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-500"></span>
                                 <span className="text-[10px] text-gray-400 font-medium">{t("Saving...")}</span>
                             </div>
                         )}
@@ -443,7 +443,7 @@ h1 {
                         <button
                             onClick={() => handleSave()}
                             disabled={isSaving}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800/50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-950 disabled:bg-gray-950/50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
                         >
                             {isSaving ? (
                                 <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
@@ -484,7 +484,7 @@ h1 {
                 {/* Resizer Divider */}
                 <div
                     onMouseDown={handleMouseDown}
-                    className={`w-[10px] cursor-col-resize flex-shrink-0 hover:bg-blue-500/50 transition-colors z-20 ${isResizing ? 'bg-blue-500' : 'bg-gray-800'}`}
+                    className={`w-[10px] cursor-col-resize flex-shrink-0 hover:bg-gray-500/50 transition-colors z-20 ${isResizing ? 'bg-gray-500' : 'bg-gray-800'}`}
                     title={t("Drag to resize")}
                 />
 
@@ -495,7 +495,7 @@ h1 {
                 >
                     {isGeneratingPreview && (
                         <div className="absolute top-4 right-4 z-40 bg-gray-900/80 px-3 py-1.5 rounded-full border border-gray-700 flex items-center gap-2 shadow-lg backdrop-blur-sm">
-                            <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></span>
+                            <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-500"></span>
                             <span className="text-[10px] font-medium text-gray-300 uppercase tracking-wider">{t("Refrescando...")}</span>
                         </div>
                     )}

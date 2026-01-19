@@ -10,14 +10,14 @@ export default function TemplateDocs() {
             <h1 className="text-3xl font-bold mb-8 text-white border-b border-gray-700 pb-4">{t("Template Engine Documentation")}</h1>
 
             <section className="mb-10">
-                <h2 className="text-xl font-semibold mb-4 text-blue-400">Introduction</h2>
+                <h2 className="text-xl font-semibold mb-4 text-gray-700">Introduction</h2>
                 <p className="mb-4">
                     PDFGenAI uses <strong>Handlebars</strong> as its template engine. Handlebars allows you to create dynamic HTML templates by using placeholders like <code>{"{{variable}}"}</code>.
                 </p>
             </section>
 
             <section className="mb-10">
-                <h2 className="text-xl font-semibold mb-4 text-blue-400">Basic Usage</h2>
+                <h2 className="text-xl font-semibold mb-4 text-gray-700">Basic Usage</h2>
                 <div className="bg-[#2d2d30] p-4 rounded-lg mb-4">
                     <pre className="text-sm text-gray-300 overflow-x-auto">
                         <code>{`<h1>{{title}}</h1>
@@ -27,7 +27,7 @@ export default function TemplateDocs() {
             </section>
 
             <section className="mb-10">
-                <h2 className="text-xl font-semibold mb-4 text-blue-400">Conditionals (If)</h2>
+                <h2 className="text-xl font-semibold mb-4 text-gray-700">Conditionals (If)</h2>
                 <p className="mb-4">Use <code>{"{{#if}}"}</code> to conditionally render content.</p>
                 <div className="bg-[#2d2d30] p-4 rounded-lg mb-4">
                     <pre className="text-sm text-gray-300 overflow-x-auto">
@@ -51,7 +51,7 @@ export default function TemplateDocs() {
             </section>
 
             <section className="mb-10">
-                <h2 className="text-xl font-semibold mb-4 text-blue-400">Loops (Each)</h2>
+                <h2 className="text-xl font-semibold mb-4 text-gray-700">Loops (Each)</h2>
                 <p className="mb-4">Iterate over arrays using <code>{"{{#each}}"}</code>.</p>
                 <div className="bg-[#2d2d30] p-4 rounded-lg mb-4">
                     <pre className="text-sm text-gray-300 overflow-x-auto">
@@ -66,7 +66,7 @@ export default function TemplateDocs() {
             </section>
 
             <section className="mb-10">
-                <h2 className="text-xl font-semibold mb-4 text-blue-400">Core Helpers</h2>
+                <h2 className="text-xl font-semibold mb-4 text-gray-700">Core Helpers</h2>
                 <div className="space-y-6">
                     <div>
                         <h3 className="text-lg font-medium mb-2 text-white">🔢 Number Formatting</h3>
@@ -173,7 +173,7 @@ export default function TemplateDocs() {
             </section>
 
             <section className="mb-10">
-                <h2 className="text-xl font-semibold mb-4 text-blue-400">CSS Styling</h2>
+                <h2 className="text-xl font-semibold mb-4 text-gray-700">CSS Styling</h2>
                 <p className="mb-4">
                     You can use standard CSS in the &quot;CSS&quot; tab. All styles are scoped to the PDF.
                     <strong>Tip:</strong> Use <code>@page</code> for page-specific styles like page breaks or backgrounds.
@@ -193,8 +193,8 @@ img {
                 </div>
             </section>
 
-            <section className="mb-10 bg-blue-900/20 p-6 rounded-xl border border-blue-500/30">
-                <h2 className="text-xl font-semibold mb-4 text-blue-300 flex items-center gap-2">
+            <section className="mb-10 bg-black/20 p-6 rounded-xl border border-gray-500/30">
+                <h2 className="text-xl font-semibold mb-4 text-gray-300 flex items-center gap-2">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -212,7 +212,7 @@ img {
                         </ul>
                     </div>
                     <div className="bg-[#1e1e1e] p-4 rounded-lg border border-gray-700">
-                        <h4 className="text-xs font-bold text-blue-500 uppercase mb-2">Handlebars (PDFGenAI)</h4>
+                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Handlebars (PDFGenAI)</h4>
                         <ul className="space-y-3 text-sm">
                             <li><code>{`{{set "x" "val"}}`}</code></li>
                             <li><code>{`{{upcase name}}`}</code></li>
@@ -226,7 +226,7 @@ img {
                     <h4 className="text-sm font-semibold text-white mb-2">Pro Tip: Default values on assignments</h4>
                     <p className="text-sm mb-3">You can use sub-expressions (content inside parentheses) to set defaults while assigning:</p>
                     <div className="bg-[#2d2d30] p-3 rounded-md">
-                        <code className="text-blue-300 text-sm">
+                        <code className="text-gray-300 text-sm">
                             {`{{set "useVat" (default useVat false)}}`}
                         </code>
                     </div>

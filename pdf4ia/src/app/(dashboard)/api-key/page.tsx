@@ -72,8 +72,8 @@ export default function ApiKeyPage() {
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="p-6">
-                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-blue-600">
-                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900">
+                        <svg className="w-5 h-5 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                         </svg>
                         {t("Your API Key")}
@@ -81,14 +81,14 @@ export default function ApiKeyPage() {
 
                     {loading ? (
                         <div className="h-24 flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
                         </div>
                     ) : (
                         <div>
                             {apiKey ? (
                                 <div className="space-y-4">
                                     <div className="relative group">
-                                        <div className="w-full bg-gray-50 border border-primary rounded-lg p-4 font-mono text-sm break-all pr-12 text-blue-600">
+                                        <div className="w-full bg-gray-50 border border-primary rounded-lg p-4 font-mono text-sm break-all pr-12 text-gray-900">
                                             {apiKey}
                                         </div>
                                         <button
@@ -126,7 +126,7 @@ export default function ApiKeyPage() {
                                     <button
                                         onClick={handleGenerate}
                                         disabled={generating}
-                                        className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                        className="px-6 py-2 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-950 transition-colors disabled:opacity-50"
                                     >
                                         {generating ? t("Generating...") : t("Generate API Key")}
                                     </button>
@@ -152,7 +152,7 @@ export default function ApiKeyPage() {
                             <button
                                 onClick={() => setActiveExampleTab("sync")}
                                 className={`px-6 py-4 text-sm font-medium transition-colors border-b-2 ${activeExampleTab === "sync"
-                                    ? "text-blue-400 border-blue-400 bg-[#1e1e1e]"
+                                    ? "text-gray-700 border-gray-700 bg-[#1e1e1e]"
                                     : "text-gray-500 border-transparent hover:text-gray-300"
                                     }`}
                             >
@@ -161,7 +161,7 @@ export default function ApiKeyPage() {
                             <button
                                 onClick={() => setActiveExampleTab("async")}
                                 className={`px-6 py-4 text-sm font-medium transition-colors border-b-2 ${activeExampleTab === "async"
-                                    ? "text-blue-400 border-blue-400 bg-[#1e1e1e]"
+                                    ? "text-gray-700 border-gray-700 bg-[#1e1e1e]"
                                     : "text-gray-500 border-transparent hover:text-gray-300"
                                     }`}
                             >
@@ -177,7 +177,7 @@ export default function ApiKeyPage() {
                                         {t("Send a request to generate a PDF and wait for the response binary data.")}
                                     </p>
                                     <div className="bg-[#2d2d30] p-4 rounded-lg overflow-x-auto border border-gray-700">
-                                        <pre className="text-xs leading-relaxed text-blue-300">
+                                        <pre className="text-xs leading-relaxed text-gray-300">
                                             <code>{`curl -X POST "https://PDFGenAI.com/api/v1/documents" \\
   -H "Authorization: Bearer ${apiKey || "YOUR_API_KEY"}" \\
   -H "Content-Type: application/json" \\
@@ -201,7 +201,7 @@ export default function ApiKeyPage() {
                                             {t("Send a request to generate a PDF in the background and get notified via webhook.")}
                                         </p>
                                         <div className="bg-[#2d2d30] p-4 rounded-lg overflow-x-auto border border-gray-700">
-                                            <pre className="text-xs leading-relaxed text-blue-300">
+                                            <pre className="text-xs leading-relaxed text-gray-300">
                                                 <code>{`curl -X POST "https://PDFGenAI.com/api/v1/documents" \\
   -H "Authorization: Bearer ${apiKey || "YOUR_API_KEY"}" \\
   -H "Content-Type: application/json" \\
@@ -217,12 +217,12 @@ export default function ApiKeyPage() {
 
                                     <div className="pt-4 border-t border-gray-800">
                                         <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                                            <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                             {t("Explain webhook")}
                                         </h4>
-                                        <p className="text-xs text-gray-400 mb-4 bg-blue-900/20 p-3 rounded border border-blue-900/30">
+                                        <p className="text-xs text-gray-400 mb-4 bg-black/20 p-3 rounded border border-black/30">
                                             {t("The webhook callback URL will receive a POST request when the document generation is complete.")}
                                         </p>
 

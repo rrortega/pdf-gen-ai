@@ -84,7 +84,7 @@ export default function RegisterPage() {
                         type="text"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-gray-500 focus:ring-2 focus:ring-gray-500 focus:outline-none"
                         required
                     />
                 </div>
@@ -98,7 +98,7 @@ export default function RegisterPage() {
                         type="email"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-gray-500 focus:ring-2 focus:ring-gray-500 focus:outline-none"
                         required
                     />
                 </div>
@@ -112,7 +112,7 @@ export default function RegisterPage() {
                         type="password"
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-gray-500 focus:ring-2 focus:ring-gray-500 focus:outline-none"
                         required
                         minLength={8}
                     />
@@ -128,7 +128,7 @@ export default function RegisterPage() {
                         type="password"
                         value={formData.passwordConfirm}
                         onChange={(e) => setFormData({ ...formData, passwordConfirm: e.target.value })}
-                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-gray-500 focus:ring-2 focus:ring-gray-500 focus:outline-none"
                         required
                         minLength={8}
                     />
@@ -137,7 +137,7 @@ export default function RegisterPage() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
+                    className="w-full rounded-lg bg-gray-900 px-4 py-3 font-semibold text-white hover:bg-gray-950 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors"
                 >
                     {loading ? t("Creating account...") : t("Create account")}
                 </button>
@@ -146,7 +146,7 @@ export default function RegisterPage() {
             <div className="mt-6 text-center">
                 <p className="text-sm text-gray-600">
                     {t("Already have an account?")}{" "}
-                    <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+                    <Link href="/login" className="font-medium text-gray-900 hover:text-gray-500">
                         {t("Sign in")}
                     </Link>
                 </p>

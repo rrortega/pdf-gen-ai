@@ -53,7 +53,7 @@ export default function SimpleTemplateForm({
                     id="title"
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className={`w-full px-4 py-3 border rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${errors.title ? "border-red-500" : "border-gray-300"
+                    className={`w-full px-4 py-3 border rounded-lg text-gray-900 focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none ${errors.title ? "border-red-500" : "border-gray-300"
                         }`}
                     placeholder={t("Enter template name")}
                     disabled={isLoading}

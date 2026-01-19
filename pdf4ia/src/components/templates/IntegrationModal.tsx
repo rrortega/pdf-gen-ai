@@ -154,7 +154,7 @@ print(response.json())`;
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`px-6 py-3 text-sm font-semibold transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === tab.id
-                                ? "border-blue-600 text-blue-600 bg-white"
+                                ? "border-gray-900 text-gray-900 bg-white"
                                 : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
                                 }`}
                         >

@@ -118,15 +118,15 @@ export default function DashboardLayout({
                 className={`hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col transition-all duration-300 ${isCollapsed ? "lg:w-20" : "lg:w-64"
                     }`}
             >
-                <div className="flex min-h-0 flex-1 flex-col bg-blue-600">
+                <div className="flex min-h-0 flex-1 flex-col bg-gray-900">
                     {/* Header with Logo and Collapse Button */}
-                    <div className="flex items-center justify-between p-4 border-b border-blue-500">
+                    <div className="flex items-center justify-between p-4 border-b border-gray-500">
                         {!isCollapsed && (
                             <h1 className="text-2xl font-bold text-white">PDFGenAI</h1>
                         )}
                         <button
                             onClick={() => setIsCollapsed(!isCollapsed)}
-                            className="p-2 rounded-md text-white hover:bg-blue-700 transition-colors"
+                            className="p-2 rounded-md text-white hover:bg-gray-950 transition-colors"
                             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                         >
                             {isCollapsed ? (
@@ -150,8 +150,8 @@ export default function DashboardLayout({
                                     key={item.name}
                                     href={item.href}
                                     className={`group flex items-center rounded-md px-3 py-3 text-sm font-medium transition-colors ${isActive
-                                        ? "bg-white text-blue-700"
-                                        : "text-white hover:bg-blue-700"
+                                        ? "bg-white text-gray-950"
+                                        : "text-white hover:bg-gray-950"
                                         }`}
                                     title={isCollapsed ? item.name : undefined}
                                 >
@@ -163,12 +163,12 @@ export default function DashboardLayout({
                     </nav>
 
                     {/* Bottom Section */}
-                    <div className="border-t border-blue-500">
+                    <div className="border-t border-gray-500">
                         {/* User Info */}
-                        <div className="p-4 border-b border-blue-500">
+                        <div className="p-4 border-b border-gray-500">
                             <div className="flex items-center">
                                 <div className="flex-shrink-0">
-                                    <div className="w-10 h-10 rounded-full bg-blue-800 flex items-center justify-center text-white font-semibold">
+                                    <div className="w-10 h-10 rounded-full bg-gray-950 flex items-center justify-center text-white font-semibold">
                                         {user.name.charAt(0).toUpperCase()}
                                     </div>
                                 </div>
@@ -177,7 +177,7 @@ export default function DashboardLayout({
                                         <p className="text-sm font-medium text-white truncate">
                                             {user.name}
                                         </p>
-                                        <p className="text-xs text-blue-200 truncate">
+                                        <p className="text-xs text-gray-200 truncate">
                                             {user.email}
                                         </p>
                                     </div>
@@ -186,10 +186,10 @@ export default function DashboardLayout({
                         </div>
 
                         {/* Language Switcher */}
-                        <div className="p-4 border-b border-blue-500">
+                        <div className="p-4 border-b border-gray-500">
                             {isCollapsed ? (
                                 <button
-                                    className="w-full p-2 rounded-md text-white hover:bg-blue-700 transition-colors flex items-center justify-center"
+                                    className="w-full p-2 rounded-md text-white hover:bg-gray-950 transition-colors flex items-center justify-center"
                                     title="Change language"
                                     onClick={() => setIsCollapsed(false)}
                                 >
@@ -223,7 +223,7 @@ export default function DashboardLayout({
             <div className="lg:hidden sticky top-0 z-10 flex h-16 flex-shrink-0 border-b border-gray-200 bg-white shadow-sm">
                 <button
                     onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                    className="border-r border-gray-200 px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                    className="border-r border-gray-200 px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-500"
                 >
                     <span className="sr-only">Open sidebar</span>
                     <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -245,7 +245,7 @@ export default function DashboardLayout({
                             className="fixed inset-0 bg-gray-600 bg-opacity-75"
                             onClick={() => setIsMobileMenuOpen(false)}
                         />
-                        <div className="relative flex w-full max-w-xs flex-1 flex-col bg-blue-600">
+                        <div className="relative flex w-full max-w-xs flex-1 flex-col bg-gray-900">
                             <div className="absolute top-0 right-0 -mr-12 pt-2">
                                 <button
                                     onClick={() => setIsMobileMenuOpen(false)}
@@ -270,8 +270,8 @@ export default function DashboardLayout({
                                                 key={item.name}
                                                 href={item.href}
                                                 className={`group flex items-center rounded-md px-3 py-3 text-sm font-medium ${isActive
-                                                    ? "bg-white text-blue-700"
-                                                    : "text-white hover:bg-blue-700"
+                                                    ? "bg-white text-gray-950"
+                                                    : "text-white hover:bg-gray-950"
                                                     }`}
                                                 onClick={() => setIsMobileMenuOpen(false)}
                                             >
@@ -284,21 +284,21 @@ export default function DashboardLayout({
                             </div>
 
                             {/* Mobile Bottom Section */}
-                            <div className="border-t border-blue-500">
-                                <div className="p-4 border-b border-blue-500">
+                            <div className="border-t border-gray-500">
+                                <div className="p-4 border-b border-gray-500">
                                     <div className="flex items-center">
                                         <div className="flex-shrink-0">
-                                            <div className="w-10 h-10 rounded-full bg-blue-800 flex items-center justify-center text-white font-semibold">
+                                            <div className="w-10 h-10 rounded-full bg-gray-950 flex items-center justify-center text-white font-semibold">
                                                 {user.name.charAt(0).toUpperCase()}
                                             </div>
                                         </div>
                                         <div className="ml-3 flex-1">
                                             <p className="text-sm font-medium text-white">{user.name}</p>
-                                            <p className="text-xs text-blue-200">{user.email}</p>
+                                            <p className="text-xs text-gray-200">{user.email}</p>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="p-4 border-b border-blue-500">
+                                <div className="p-4 border-b border-gray-500">
                                     <LanguageSwitcher variant="sidebar" />
                                 </div>
                                 <div className="p-4">
@@ -332,7 +332,7 @@ export default function DashboardLayout({
                             <a
                                 key={item.name}
                                 href={item.href}
-                                className={`flex flex-col items-center px-3 py-2 text-xs font-medium ${isActive ? "text-blue-600" : "text-gray-600 hover:text-blue-600"
+                                className={`flex flex-col items-center px-3 py-2 text-xs font-medium ${isActive ? "text-gray-900" : "text-gray-600 hover:text-gray-900"
                                     }`}
                             >
                                 <span className="mb-1">{item.icon}</span>

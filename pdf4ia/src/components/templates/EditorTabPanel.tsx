@@ -74,7 +74,7 @@ export default function EditorTabPanel({
                             onTabChange(tab.id);
                         }}
                         className={`px-4 py-2 text-sm font-medium transition-colors border-r border-gray-700/50 ${activeTab === tab.id && !showSettings && !showDocs
-                            ? "text-white bg-[#1e1e1e] border-b-2 border-blue-600"
+                            ? "text-white bg-[#1e1e1e] border-b-2 border-gray-900"
                             : "text-gray-400 hover:text-gray-200"
                             }`}
                     >
@@ -91,7 +91,7 @@ export default function EditorTabPanel({
                             setShowDocs(false);
                         }}
                         className={`px-4 py-2 flex items-center gap-2 text-sm font-medium transition-colors border-l border-gray-700/50 ${showSettings
-                            ? "text-white bg-[#1e1e1e] border-b-2 border-blue-600"
+                            ? "text-white bg-[#1e1e1e] border-b-2 border-gray-900"
                             : "text-gray-400 hover:text-white"}`}
                         title={t("Settings")}
                     >
@@ -107,7 +107,7 @@ export default function EditorTabPanel({
                             setShowSettings(false);
                         }}
                         className={`px-4 py-2 flex items-center gap-2 text-sm font-medium transition-colors border-l border-gray-700/50 ${showDocs
-                            ? "text-white bg-[#1e1e1e] border-b-2 border-blue-600"
+                            ? "text-white bg-[#1e1e1e] border-b-2 border-gray-900"
                             : "text-gray-400 hover:text-white"}`}
                         title={t("Documentation")}
                     >

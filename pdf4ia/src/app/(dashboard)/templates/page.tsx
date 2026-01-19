@@ -154,13 +154,7 @@ export default function TemplatesPage() {
         return new Date(dateString).toLocaleDateString();
     };
 
-    if (loading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center">
-                <div className="text-lg">{t("Loading...")}</div>
-            </div>
-        );
-    }
+
 
     const handleDeleteClick = (template: Template) => {
         setTemplateToDelete(template);
@@ -204,7 +198,7 @@ export default function TemplatesPage() {
                         </h1>
                         <button
                             onClick={() => router.push("/templates/new")}
-                            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                            className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-950 transition-colors"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -220,7 +214,7 @@ export default function TemplatesPage() {
                             placeholder={t("Search templates...")}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900"
+                            className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none text-gray-900"
                         />
                         <svg
                             className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
@@ -240,7 +234,7 @@ export default function TemplatesPage() {
                                     key={tag}
                                     onClick={() => toggleTag(tag)}
                                     className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${selectedTags.includes(tag)
-                                        ? "bg-blue-600 text-white"
+                                        ? "bg-gray-900 text-white"
                                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                                         }`}
                                 >
@@ -264,8 +258,45 @@ export default function TemplatesPage() {
                     </div>
                 )}
 
-                {/* Templates Grid */}
-                {filteredTemplates.length === 0 ? (
+                {/* Templates List */}
+                {loading ? (
+                    <div className="flex flex-col gap-4">
+                        {[...Array(8)].map((_, i) => (
+                            <div
+                                key={i}
+                                className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex items-center justify-between"
+                            >
+                                <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
+                                    {/* Thumbnail Skeleton */}
+                                    <div className="w-24 h-32 bg-gray-200 rounded animate-pulse flex-shrink-0" />
+
+                                    <div className="flex flex-col min-w-0 flex-1 pl-2 space-y-3">
+                                        {/* Title Skeleton */}
+                                        <div className="h-6 bg-gray-200 rounded w-1/3 animate-pulse" />
+
+                                        {/* Tags Skeleton */}
+                                        <div className="flex gap-2">
+                                            <div className="h-5 bg-gray-200 rounded w-16 animate-pulse" />
+                                            <div className="h-5 bg-gray-200 rounded w-16 animate-pulse" />
+                                        </div>
+
+                                        {/* ID and Date Skeleton */}
+                                        <div className="flex gap-4 mt-1">
+                                            <div className="h-4 bg-gray-200 rounded w-32 animate-pulse" />
+                                            <div className="h-4 bg-gray-200 rounded w-32 animate-pulse" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <div className="w-9 h-9 bg-gray-200 rounded-lg animate-pulse" />
+                                    <div className="w-9 h-9 bg-gray-200 rounded-lg animate-pulse" />
+                                    <div className="w-9 h-9 bg-gray-200 rounded-lg animate-pulse" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : filteredTemplates.length === 0 ? (
                     <div className="text-center py-12">
                         <svg
                             className="mx-auto h-12 w-12 text-gray-400"
@@ -286,7 +317,7 @@ export default function TemplatesPage() {
                         {!searchQuery && selectedTags.length === 0 && (
                             <button
                                 onClick={() => router.push("/templates/new")}
-                                className="mt-4 inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                                className="mt-4 inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-950 transition-colors"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -300,7 +331,7 @@ export default function TemplatesPage() {
                         {filteredTemplates.map((template) => (
                             <div
                                 key={template.$id}
-                                className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md hover:border-blue-600 transition-all flex items-center justify-between group"
+                                className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md hover:border-gray-900 transition-all flex items-center justify-between group"
                             >
                                 <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
                                     {/* Template Thumbnail */}
@@ -322,7 +353,7 @@ export default function TemplatesPage() {
                                                     {template.tags.map((tag) => (
                                                         <span
                                                             key={tag}
-                                                            className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium"
+                                                            className="inline-block px-2 py-0.5 bg-gray-100 text-gray-950 rounded text-xs font-medium"
                                                         >
                                                             {tag}
                                                         </span>
@@ -344,7 +375,7 @@ export default function TemplatesPage() {
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => handleIntegrationClick(template)}
-                                        className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                        className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
                                         title={t("Integration Code")}
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -374,29 +405,29 @@ export default function TemplatesPage() {
                         ))}
                     </div>
                 )}
+
+                <DeleteConfirmationModal
+                    isOpen={isDeleteModalOpen}
+                    onClose={() => {
+                        setIsDeleteModalOpen(false);
+                        setTemplateToDelete(null);
+                    }}
+                    onConfirm={handleConfirmDelete}
+                    templateTitle={templateToDelete?.title || ""}
+                    t={t}
+                />
+
+                <IntegrationModal
+                    isOpen={isIntegrationModalOpen}
+                    onClose={() => {
+                        setIsIntegrationModalOpen(false);
+                        setTemplateForIntegration(null);
+                    }}
+                    templateId={templateForIntegration?.$id || ""}
+                    templateTitle={templateForIntegration?.title || ""}
+                    testData={templateForIntegration?.test_data || ""}
+                />
             </div>
-
-            <DeleteConfirmationModal
-                isOpen={isDeleteModalOpen}
-                onClose={() => {
-                    setIsDeleteModalOpen(false);
-                    setTemplateToDelete(null);
-                }}
-                onConfirm={handleConfirmDelete}
-                templateTitle={templateToDelete?.title || ""}
-                t={t}
-            />
-
-            <IntegrationModal
-                isOpen={isIntegrationModalOpen}
-                onClose={() => {
-                    setIsIntegrationModalOpen(false);
-                    setTemplateForIntegration(null);
-                }}
-                templateId={templateForIntegration?.$id || ""}
-                templateTitle={templateForIntegration?.title || ""}
-                testData={templateForIntegration?.test_data || ""}
-            />
         </div>
     );
 }

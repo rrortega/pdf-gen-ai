@@ -94,14 +94,14 @@ export default function DashboardPage() {
                 {/* Statistics Tiles */}
                 <div className="grid gap-6 md:grid-cols-3 mb-8">
                     {/* Templates Count */}
-                    <div className="rounded-lg border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="rounded-lg border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-white p-6 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-blue-700">{t("Total Templates")}</p>
-                                <p className="mt-2 text-3xl font-bold text-blue-900">{stats?.templatesCount || 0}</p>
+                                <p className="text-sm font-medium text-gray-950">{t("Total Templates")}</p>
+                                <p className="mt-2 text-3xl font-bold text-black">{stats?.templatesCount || 0}</p>
                             </div>
-                            <div className="p-3 bg-blue-100 rounded-lg">
-                                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="p-3 bg-gray-100 rounded-lg">
+                                <svg className="w-8 h-8 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                             </div>
@@ -148,7 +148,7 @@ export default function DashboardPage() {
                     </h2>
                     <div className="mb-4 flex items-center gap-4 text-sm">
                         <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 bg-blue-500 rounded"></div>
+                            <div className="w-4 h-4 bg-gray-500 rounded"></div>
                             <span className="text-gray-600">{t("Documents Created")}</span>
                         </div>
                         <div className="flex items-center gap-2">

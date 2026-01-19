@@ -37,18 +37,18 @@ export default function TagsInput({
 
     return (
         <div className="w-full">
-            <div className="flex flex-wrap gap-2 p-3 border border-gray-300 rounded-lg bg-white focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+            <div className="flex flex-wrap gap-2 p-3 border border-gray-300 rounded-lg bg-white focus-within:ring-2 focus-within:ring-gray-500 focus-within:border-gray-500">
                 {value.map((tag) => (
                     <span
                         key={tag}
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-950 rounded-full text-sm font-medium"
                     >
                         {tag}
                         {!disabled && (
                             <button
                                 type="button"
                                 onClick={() => removeTag(tag)}
-                                className="hover:bg-blue-200 rounded-full p-0.5 transition-colors"
+                                className="hover:bg-gray-200 rounded-full p-0.5 transition-colors"
                             >
                                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                     <path

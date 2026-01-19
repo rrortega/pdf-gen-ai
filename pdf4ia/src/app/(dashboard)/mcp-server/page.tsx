@@ -456,26 +456,22 @@ const result = await client.callTool({
                                 </div>
 
                                 <div className="space-y-6">
-                                    <div>
-                                        <h4 className="font-semibold text-gray-900 mb-3">Paso 1: Configurar OAuth</h4>
-                                        <p className="text-gray-600 text-sm mb-3">
-                                            Primero, ejecuta el setup de OAuth (solo una vez):
-                                        </p>
-                                        <div className="relative">
-                                            <pre className="bg-gray-900 text-gray-100 rounded-lg p-3 text-sm">
-                                                <code>curl -X POST {appUrl}/api/oauth/setup</code>
-                                            </pre>
-                                            <button
-                                                onClick={() => copyToClipboard(`curl -X POST ${appUrl}/api/oauth/setup`, 'oauth-setup')}
-                                                className="absolute top-2 right-2 p-1.5 bg-gray-800 hover:bg-gray-700 rounded text-white text-xs"
-                                            >
-                                                {copiedSection === 'oauth-setup' ? '✓' : 'Copiar'}
-                                            </button>
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                                        <div className="flex gap-3">
+                                            <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <div>
+                                                <p className="text-sm font-semibold text-yellow-800 mb-1">Setup Inicial (Solo Administradores):</p>
+                                                <p className="text-sm text-yellow-700">
+                                                    Si eres el administrador del sistema, ejecuta esto una sola vez: <code className="bg-yellow-100 px-1 rounded">curl -X POST {appUrl}/api/oauth/setup</code>
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
 
                                     <div>
-                                        <h4 className="font-semibold text-gray-900 mb-3">Paso 2: Obtener Credenciales OAuth</h4>
+                                        <h4 className="font-semibold text-gray-900 mb-3">Paso 1: Obtener Credenciales OAuth</h4>
                                         <p className="text-gray-600 text-sm mb-4">
                                             Para conectar ChatGPT, necesitas dos credenciales:
                                         </p>
@@ -516,7 +512,7 @@ const result = await client.callTool({
                                     </div>
 
                                     <div>
-                                        <h4 className="font-semibold text-gray-900 mb-3">Paso 3: Configurar Custom GPT</h4>
+                                        <h4 className="font-semibold text-gray-900 mb-3">Paso 2: Configurar Custom GPT</h4>
                                         <p className="text-gray-600 text-sm mb-3">
                                             En ChatGPT, crea un nuevo Custom GPT y configura la autenticación:
                                         </p>
@@ -553,7 +549,7 @@ const result = await client.callTool({
                                     </div>
 
                                     <div>
-                                        <h4 className="font-semibold text-gray-900 mb-3">Paso 4: Definir Actions</h4>
+                                        <h4 className="font-semibold text-gray-900 mb-3">Paso 3: Definir Actions</h4>
                                         <p className="text-gray-600 text-sm mb-3">
                                             Agrega el siguiente schema OpenAPI a tu Custom GPT:
                                         </p>

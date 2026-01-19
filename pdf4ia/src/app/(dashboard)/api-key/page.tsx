@@ -123,7 +123,7 @@ export default function ApiKeyPage() {
                                             {t("Warning: Never share your API key. Anyone with this key can access your templates and documents.")}
                                         </p>
                                         <button
-                                            onClick={handleGenerate}
+                                            onClick={handleRegenerateClick}
                                             disabled={generating}
                                             className="px-4 py-2 w-[150px] border border-red bg-red-50 text-red-600 text-sm font-medium rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
                                         >
@@ -152,6 +152,74 @@ export default function ApiKeyPage() {
                     )}
                 </div>
             </div>
+
+            {/* Confirmation Modal */}
+            {showConfirmModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
+                        <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                                    ⚠️ Advertencia: Regenerar API Key
+                                </h3>
+                                <p className="text-sm text-gray-600">
+                                    Esta acción es irreversible y tendrá las siguientes consecuencias:
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+                            <p className="text-sm font-semibold text-red-900">
+                                🔌 Desconexión inmediata:
+                            </p>
+                            <ul className="text-sm text-red-800 space-y-1 ml-4 list-disc">
+                                <li>Todos los servidores MCP (Claude Desktop, VS Code, etc.) se desconectarán</li>
+                                <li>Todas las integraciones REST API dejarán de funcionar</li>
+                                <li>Las integraciones OAuth (ChatGPT Custom GPTs) perderán acceso</li>
+                                <li>Cualquier aplicación que use tu API Key actual fallará</li>
+                            </ul>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">
+                                Para confirmar, escribe: <span className="font-mono text-red-600">entiendo los riesgos</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={confirmText}
+                                onChange={(e) => setConfirmText(e.target.value)}
+                                placeholder="entiendo los riesgos"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                autoFocus
+                            />
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                onClick={() => {
+                                    setShowConfirmModal(false);
+                                    setConfirmText("");
+                                }}
+                                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleGenerate}
+                                disabled={!isConfirmTextValid || generating}
+                                className="flex-1 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {generating ? "Regenerando..." : "Regenerar API Key"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="mt-12 space-y-8">
                 <section>

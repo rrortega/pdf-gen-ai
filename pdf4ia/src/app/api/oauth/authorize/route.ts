@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { account } from '@/lib/appwrite';
-import { OAuthClientsService, OAuthCodesService } from '@/lib/oauth-service';
-import { validateRedirectUri, validateScopes } from '@/lib/oauth';
+import { OAuthCodesService } from '@/lib/oauth-service';
+import { validateScopes } from '@/lib/oauth';
 
 /**
  * OAuth 2.0 Authorization Endpoint
  * GET /api/oauth/authorize
+ * 
+ * Simplified version: client_id = User ID, client_secret = API Key
  */
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
@@ -35,19 +36,12 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        // Get client
-        const client = await OAuthClientsService.getClientByClientId(client_id);
-        if (!client) {
+        // Validate redirect URI format
+        try {
+            new URL(redirect_uri);
+        } catch {
             return NextResponse.json(
-                { error: 'invalid_client', error_description: 'Client not found' },
-                { status: 401 }
-            );
-        }
-
-        // Validate redirect URI
-        if (!validateRedirectUri(redirect_uri, client.redirect_uris)) {
-            return NextResponse.json(
-                { error: 'invalid_request', error_description: 'Invalid redirect_uri' },
+                { error: 'invalid_request', error_description: 'Invalid redirect_uri format' },
                 { status: 400 }
             );
         }
@@ -71,7 +65,17 @@ export async function GET(request: NextRequest) {
 
         try {
             // Verify session and get user
-            const user = await account.get();
+            const { getAppwriteAccount } = await import('@/lib/appwrite');
+            const accountService = await getAppwriteAccount();
+            const user = await accountService.get();
+
+            // Verify that the client_id matches the authenticated user's ID
+            if (client_id !== user.$id) {
+                return NextResponse.json(
+                    { error: 'invalid_client', error_description: 'Client ID must match your User ID' },
+                    { status: 401 }
+                );
+            }
 
             // Generate authorization code
             const { code } = await OAuthCodesService.createCode(

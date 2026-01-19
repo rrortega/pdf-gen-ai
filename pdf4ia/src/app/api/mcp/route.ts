@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite';
-import { getAuthenticatedDatabases } from '@/lib/auth';
+import { getAuthenticatedDatabases, authenticateRequest } from '@/lib/auth';
 import { PDFGenerator } from '@/lib/pdf-generator';
 import { ID } from 'node-appwrite';
 import { SignJWT } from 'jose';
@@ -152,6 +152,11 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export async function POST(request: NextRequest) {
+    const user = await authenticateRequest(request);
+    if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const sessionId = request.nextUrl.searchParams.get('sessionId');
     if (!sessionId) {
         return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });

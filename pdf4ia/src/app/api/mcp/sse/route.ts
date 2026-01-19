@@ -1,13 +1,22 @@
 import { NextRequest } from 'next/server';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { getOrCreateServer, transports } from '../route';
+import { authenticateRequest } from '@/lib/auth';
 
 /**
  * MCP SSE Initialization Endpoint
  * This route sets up the persistent SSE connection for ChatGPT and other remote clients.
  */
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
     try {
+        const user = await authenticateRequest(request);
+        if (!user) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
         const server = getOrCreateServer();
 
         // Use a TransformStream for the SSE response
@@ -59,7 +68,7 @@ export async function GET(_request: NextRequest) {
         transports.set(sessionId, nextTransport);
 
         // Attach request to transport so tools can access it
-        (nextTransport as any).request = _request;
+        (nextTransport as any).request = request;
 
         // Connect the server to this transport
         await server.connect(nextTransport);

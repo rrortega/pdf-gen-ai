@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3030",
+    "dev": "pkill -f \"next\" 2>/dev/null || true && sleep 1 && lsof -ti:3030 | xargs kill -9 2>/dev/null || true && sleep 1 && next dev -p 3030",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "kill:port": "lsof -ti:3030 | xargs kill -9 2>/dev/null || true",
+    "kill:next": "pkill -f \"next\" 2>/dev/null || true"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

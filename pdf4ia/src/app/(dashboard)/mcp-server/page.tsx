@@ -126,7 +126,7 @@ const result = await client.callTool({
     ],
     "total": 100
   },
-  "filename": "invoice-001"
+  "name": "invoice-001"
 }`;
 
     return (
@@ -589,7 +589,7 @@ paths:
                 data:
                   type: object
                   description: Data to fill the template
-                filename:
+                name:
                   type: string
                   description: Optional filename for the PDF
       responses:
@@ -602,13 +602,13 @@ paths:
                 properties:
                   document_id:
                     type: string
-                  filename:
+                  name:
                     type: string
                   download_url:
                     type: string`}</code>
                                             </pre>
                                             <button
-                                                onClick={() => copyToClipboard(`openapi: 3.0.0\ninfo:\n  title: PDFGenAI API\n  version: 1.0.0\nservers:\n  - url: ${appUrl}/api/v1\npaths:\n  /templates:\n    get:\n      operationId: listTemplates\n      summary: List available PDF templates\n      responses:\n        '200':\n          description: List of templates\n  /generate:\n    post:\n      operationId: generatePDF\n      summary: Generate a PDF document\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              required:\n                - template_id\n                - data\n              properties:\n                template_id:\n                  type: string\n                  description: ID of the template to use\n                data:\n                  type: object\n                  description: Data to fill the template\n                filename:\n                  type: string\n                  description: Optional filename for the PDF\n      responses:\n        '200':\n          description: PDF generated successfully\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  document_id:\n                    type: string\n                  filename:\n                    type: string\n                  download_url:\n                    type: string`, 'openapi-schema')}
+                                                onClick={() => copyToClipboard(`openapi: 3.0.0\ninfo:\n  title: PDFGenAI API\n  version: 1.0.0\nservers:\n  - url: ${appUrl}/api/v1\npaths:\n  /templates:\n    get:\n      operationId: listTemplates\n      summary: List available PDF templates\n      responses:\n        '200':\n          description: List of templates\n  /generate:\n    post:\n      operationId: generatePDF\n      summary: Generate a PDF document\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              required:\n                - template_id\n                - data\n              properties:\n                template_id:\n                  type: string\n                  description: ID of the template to use\n                data:\n                  type: object\n                  description: Data to fill the template\n                name:\n                  type: string\n                  description: Optional filename for the PDF\n      responses:\n        '200':\n          description: PDF generated successfully\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  document_id:\n                    type: string\n                  name:\n                    type: string\n                  download_url:\n                    type: string`, 'openapi-schema')}
                                                 className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded text-white text-xs"
                                             >
                                                 {copiedSection === 'openapi-schema' ? '✓ Copiado' : 'Copiar'}

@@ -12,6 +12,16 @@ interface IntegrationModalProps {
     testData: Record<string, unknown>;
 }
 
+const LoadingSpinner = ({ t }: { t: (key: string) => string }) => (
+    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1e1e1e] z-20">
+        <svg className="w-8 h-8 text-gray-400 animate-spin mb-3" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span className="text-gray-400 text-sm font-medium">{t("Initializing Editor...")}</span>
+    </div>
+);
+
 export default function IntegrationModal({
     isOpen,
     onClose,
@@ -21,6 +31,7 @@ export default function IntegrationModal({
 }: IntegrationModalProps) {
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState(0);
+    const [isEditorLoading, setIsEditorLoading] = useState(true);
 
     if (!isOpen) return null;
 
@@ -55,20 +66,21 @@ export default function IntegrationModal({
     ];
 
     const generateCode = (lang: string) => {
-        const body = JSON.stringify({
-            template_id: templateId,
-            filename: "example-document",
-            data: parsedData
-        }, null, 2);
+        try {
+            const body = JSON.stringify({
+                template_id: templateId,
+                filename: "example-document",
+                data: parsedData
+            }, null, 2);
 
-        switch (lang) {
-            case "Curl":
-                return `curl -X POST "${apiUrl}" \\
+            switch (lang) {
+                case "Curl":
+                    return `curl -X POST "${apiUrl}" \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -d '${body}'`;
-            case "Node.js":
-                return `// Example using fetch (Standard in Node 18+)
+                case "Node.js":
+                    return `// Example using fetch (Standard in Node 18+)
 const data = ${body};
 
 fetch('${apiUrl}', {
@@ -82,8 +94,8 @@ fetch('${apiUrl}', {
 .then(res => res.json())
 .then(json => console.log(json))
 .catch(err => console.error(err));`;
-            case "PHP":
-                return `<?php
+                case "PHP":
+                    return `<?php
 $apiUrl = "${apiUrl}";
 $apiKey = "YOUR_API_KEY";
 
@@ -108,8 +120,8 @@ if ($result === FALSE) { /* Handle error */ }
 
 var_dump(json_decode($result));
 ?>`;
-            case "Python":
-                return `import requests
+                case "Python":
+                    return `import requests
 import json
 
 api_url = "${apiUrl}"
@@ -124,8 +136,12 @@ headers = {
 
 response = requests.post(api_url, headers=headers, data=json.dumps(data))
 print(response.json())`;
-            default:
-                return "";
+                default:
+                    return "// Select a language to see the code";
+            }
+        } catch (e) {
+            console.error("Error generating code:", e);
+            return "// Error generating code snippets";
         }
     };
 
@@ -166,14 +182,17 @@ print(response.json())`;
                 </div>
 
                 {/* Code Area */}
-                <div className="flex-1 overflow-hidden flex flex-col bg-[#1e1e1e] relative group">
-                    <div className="flex-1 min-h-[400px]">
+                <div className="flex-1 min-h-[450px] overflow-hidden flex flex-col bg-[#1e1e1e] relative group border-t border-gray-100">
+                    {isEditorLoading && <LoadingSpinner t={t} />}
+                    <div className="flex-1 h-full">
                         <Editor
-                            height="100%"
+                            height="450px"
                             defaultLanguage={tabs[activeTab].language}
                             language={tabs[activeTab].language}
                             value={generateCode(tabs[activeTab].name)}
                             theme="vs-dark"
+                            onMount={() => setIsEditorLoading(false)}
+                            loading={<LoadingSpinner t={t} />}
                             options={{
                                 readOnly: true,
                                 minimap: { enabled: false },

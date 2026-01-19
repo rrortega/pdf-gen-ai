@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { DATABASE_ID, COLLECTIONS } from "@/lib/appwrite";
+import { DATABASE_ID, COLLECTIONS, getServerAppwriteTables } from "@/lib/appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
 
 export async function GET(
@@ -8,28 +8,37 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
+        const signature = await request.nextUrl.searchParams.get('signature');
         const auth = await getAuthenticatedDatabases(request);
-        if (!auth) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        const tables = await getServerAppwriteTables();
+
+        if (!auth && !signature) {
+            return NextResponse.json({ error: "Unauthorized: signature is required" }, { status: 401 });
         }
 
-        const { tables, user } = auth;
-
         // Get document to find the file ID
-        const document = await tables.getRow({
-            databaseId: DATABASE_ID,
-            tableId: COLLECTIONS.DOCUMENTS,
-            rowId: id,
-        });
+        let document;
+        try {
+            document = await tables.getRow({
+                databaseId: DATABASE_ID,
+                tableId: COLLECTIONS.DOCUMENTS,
+                rowId: id,
+            });
+        } catch {
+            return NextResponse.json({ error: "Document not found" }, { status: 404 });
+        }
 
         if (!document) {
             return NextResponse.json({ error: "Document not found" }, { status: 404 });
         }
 
-        // Check ownership if not admin
-        if (document.user_id !== user.id) {
-            // Check if there's an isAdmin flag in auth but for now let's stick to user_id
-            return NextResponse.json({ error: "Access denied" }, { status: 403 });
+        // Check access: either valid signature OR authenticated owner
+        const isValidSignature = signature && document.signature === signature;
+        const isOwner = auth && document.user_id === auth.user.id;
+
+        if (!isValidSignature && !isOwner) {
+            return NextResponse.json({ error: "Access denied or invalid signature" }, { status: 403 });
         }
 
         if (!document.pdf_file) {

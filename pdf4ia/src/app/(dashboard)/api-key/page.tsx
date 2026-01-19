@@ -257,7 +257,7 @@ export default function ApiKeyPage() {
                                     </p>
                                     <div className="bg-[#2d2d30] p-4 rounded-lg overflow-x-auto border border-gray-700">
                                         <pre className="text-xs leading-relaxed text-gray-300">
-                                            <code>{`curl -X POST "https://PDFGenAI.com/api/v1/documents" \\
+                                            <code>{`curl -X POST "https://PDFGenAI.com/api/v1/generate" \\
   -H "Authorization: Bearer ${apiKey || "YOUR_API_KEY"}" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -281,7 +281,7 @@ export default function ApiKeyPage() {
                                         </p>
                                         <div className="bg-[#2d2d30] p-4 rounded-lg overflow-x-auto border border-gray-700">
                                             <pre className="text-xs leading-relaxed text-gray-300">
-                                                <code>{`curl -X POST "https://PDFGenAI.com/api/v1/documents" \\
+                                                <code>{`curl -X POST "https://PDFGenAI.com/api/v1/generate" \\
   -H "Authorization: Bearer ${apiKey || "YOUR_API_KEY"}" \\
   -H "Content-Type: application/json" \\
   -d '{

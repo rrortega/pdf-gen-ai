@@ -10,6 +10,7 @@ Una plataforma para crear y gestionar plantillas de PDF con generación automát
 - **Almacenamiento** en Appwrite Storage
 - **Modo dual**: Síncrono (local) / Asíncrono (producción)
 - **Dashboard web** completo
+- **🆕 Servidor MCP**: Integración con Claude Desktop para generar PDFs con IA
 
 ## 🛠️ Stack Tecnológico
 
@@ -189,6 +190,105 @@ O configura manualmente con:
 ```bash
 curl -X POST http://localhost:3030/api/v1/setup
 ```
+
+## 🤖 Servidor MCP (Model Context Protocol)
+
+PDFGenAI incluye un servidor MCP que permite a Claude Desktop generar y gestionar PDFs mediante lenguaje natural.
+
+### Instalación del Servidor MCP
+
+1. **Navega al directorio del servidor:**
+
+   ```bash
+   cd mcp-server
+   npm install
+   ```
+
+2. **Configura las variables de entorno:**
+
+   ```bash
+   cp .env.example .env
+   # Edita .env con tu API key
+   ```
+
+3. **Configura Claude Desktop:**
+
+   Edita el archivo de configuración de Claude Desktop:
+   
+   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+   Agrega:
+
+   ```json
+   {
+     "mcpServers": {
+       "pdfgenai": {
+         "command": "node",
+         "args": ["/ruta/completa/a/pdf4ia/mcp-server/index.js"],
+         "env": {
+           "PDFGENAI_API_URL": "http://localhost:3000",
+           "PDFGENAI_API_KEY": "tu-api-key-aqui"
+         }
+       }
+     }
+   }
+   ```
+
+4. **Reinicia Claude Desktop**
+
+### Herramientas Disponibles
+
+El servidor MCP proporciona 5 herramientas:
+
+#### 1. `generate_pdf`
+Genera un PDF desde una plantilla con datos dinámicos.
+
+**Ejemplo de uso en Claude:**
+```
+"Genera una factura para el cliente John Doe con número INV-001 y total de $100"
+```
+
+#### 2. `list_templates`
+Lista todas las plantillas disponibles.
+
+**Ejemplo de uso en Claude:**
+```
+"Muéstrame todas las plantillas de facturas disponibles"
+```
+
+#### 3. `list_documents`
+Lista los documentos PDF generados.
+
+**Ejemplo de uso en Claude:**
+```
+"Muéstrame los últimos 10 PDFs generados"
+```
+
+#### 4. `get_document`
+Obtiene detalles y URL de descarga de un documento.
+
+**Ejemplo de uso en Claude:**
+```
+"Dame el enlace de descarga del documento doc_abc123"
+```
+
+#### 5. `search_documents`
+Busca documentos por nombre o fecha.
+
+**Ejemplo de uso en Claude:**
+```
+"Busca todas las facturas generadas en enero de 2024"
+```
+
+### Obtener tu API Key
+
+1. Inicia sesión en PDFGenAI
+2. Ve a: `http://localhost:3000/api-key`
+3. Copia tu API key
+4. Úsala en la configuración del servidor MCP
+
+Para más detalles, consulta: [mcp-server/README.md](./mcp-server/README.md)
 
 ## 🚀 Despliegue
 

@@ -1,0 +1,14 @@
+{
+    "mcpServers": {
+        "pdfgenai": {
+            "command": "node",
+            "args": [
+                "/Users/mayo11/Develop/CHAMBAPRO/pdf4ia/pdf4ia/mcp-server/index.js"
+            ],
+            "env": {
+                "PDFGENAI_API_URL": "http://localhost:3000",
+                "PDFGENAI_API_KEY": "your-api-key-here"
+            }
+        }
+    }
+}

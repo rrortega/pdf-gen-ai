@@ -109,6 +109,15 @@ export default function DashboardLayout({
                 </svg>
             )
         },
+        {
+            name: t("MCP Server"),
+            href: "/mcp-server",
+            icon: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            )
+        },
     ];
 
     return (
@@ -206,7 +215,7 @@ export default function DashboardLayout({
                         <div className="p-4">
                             <button
                                 onClick={handleLogout}
-                                className="w-full flex items-center justify-center rounded-md bg-red-600 px-3 py-3 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+                                className="w-full flex items-center justify-center rounded-md bg-primary cursor-pointer border px-3 py-3 text-sm font-medium text-white hover:bg-red-700 transition-colors"
                                 title={isCollapsed ? t("Logout") : undefined}
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -304,7 +313,7 @@ export default function DashboardLayout({
                                 <div className="p-4">
                                     <button
                                         onClick={handleLogout}
-                                        className="w-full flex items-center justify-center rounded-md bg-red-600 px-3 py-3 text-sm font-medium text-white hover:bg-red-700"
+                                        className="w-full flex items-center justify-center rounded-md bg-transparent border border-promary px-3 py-3 text-sm font-medium text-white hover:bg-red-700"
                                     >
                                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

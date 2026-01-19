@@ -1,0 +1,22 @@
+{
+    "name": "pdfgenai-mcp-server",
+    "version": "1.0.0",
+    "description": "MCP server for PDFGenAI - Generate and manage PDF documents",
+    "type": "module",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "keywords": [
+        "mcp",
+        "pdf",
+        "generator",
+        "ai"
+    ],
+    "author": "ChambaPRO",
+    "license": "MIT",
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.0.4",
+        "node-fetch": "^3.3.2"
+    }
+}

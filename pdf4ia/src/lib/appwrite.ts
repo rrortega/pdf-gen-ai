@@ -63,6 +63,10 @@ export const getServerAppwriteAccount = () => {
   return new sdk.Account(getServerAppwriteClient());
 };
 
+export const getServerAppwriteDatabases = () => {
+  return new sdk.Databases(getServerAppwriteClient());
+};
+
 export const getServerAppwriteTables = () => {
   return new sdk.TablesDB(getServerAppwriteClient());
 };

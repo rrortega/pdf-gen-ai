@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import dynamic from 'next/dynamic';
 
@@ -12,12 +12,29 @@ const MermaidDiagram = dynamic(() => import('@/components/MermaidDiagram'), {
 export default function MCPServerPage() {
     const { t } = useI18n();
     const [copiedSection, setCopiedSection] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'claude' | 'vscode' | 'n8n' | 'langchain'>('claude');
+    const [activeTab, setActiveTab] = useState<'claude' | 'vscode' | 'n8n' | 'langchain' | 'chatgpt'>('claude');
+    const [userId, setUserId] = useState<string>('');
 
     // Get the app URL from environment or use localhost as fallback
     const appUrl = typeof window !== 'undefined'
         ? window.location.origin
         : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+    // Fetch user ID
+    useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const response = await fetch('/api/user');
+                if (response.ok) {
+                    const data = await response.json();
+                    setUserId(data.user.$id);
+                }
+            } catch (error) {
+                console.error('Error fetching user:', error);
+            }
+        };
+        fetchUser();
+    }, []);
 
     const copyToClipboard = (text: string, section: string) => {
         navigator.clipboard.writeText(text);
@@ -226,6 +243,15 @@ const result = await client.callTool({
                             >
                                 LangChain
                             </button>
+                            <button
+                                onClick={() => setActiveTab('chatgpt')}
+                                className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${activeTab === 'chatgpt'
+                                    ? 'border-gray-900 text-gray-900'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                            >
+                                ChatGPT
+                            </button>
                         </nav>
                     </div>
 
@@ -401,6 +427,207 @@ const result = await client.callTool({
                                     <p className="text-sm text-gray-600">
                                         Puedes integrar estas herramientas MCP en tus agentes de LangChain para que generen PDFs automáticamente como parte de sus flujos de trabajo.
                                     </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ChatGPT Tab */}
+                    {activeTab === 'chatgpt' && (
+                        <div className="space-y-6">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-3">Integración con ChatGPT</h3>
+                                <p className="text-gray-600 mb-4">
+                                    Conecta PDFGenAI con ChatGPT usando OAuth 2.0 para crear Custom GPTs que generen PDFs.
+                                </p>
+
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                                    <div className="flex gap-3">
+                                        <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <div>
+                                            <p className="text-sm font-semibold text-blue-800 mb-1">Nota:</p>
+                                            <p className="text-sm text-blue-700">
+                                                ChatGPT no soporta MCP directamente. En su lugar, usa OAuth 2.0 para autenticar Custom GPTs.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div>
+                                        <h4 className="font-semibold text-gray-900 mb-3">Paso 1: Configurar OAuth</h4>
+                                        <p className="text-gray-600 text-sm mb-3">
+                                            Primero, ejecuta el setup de OAuth (solo una vez):
+                                        </p>
+                                        <div className="relative">
+                                            <pre className="bg-gray-900 text-gray-100 rounded-lg p-3 text-sm">
+                                                <code>curl -X POST {appUrl}/api/oauth/setup</code>
+                                            </pre>
+                                            <button
+                                                onClick={() => copyToClipboard(`curl -X POST ${appUrl}/api/oauth/setup`, 'oauth-setup')}
+                                                className="absolute top-2 right-2 p-1.5 bg-gray-800 hover:bg-gray-700 rounded text-white text-xs"
+                                            >
+                                                {copiedSection === 'oauth-setup' ? '✓' : 'Copiar'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="font-semibold text-gray-900 mb-3">Paso 2: Obtener Credenciales OAuth</h4>
+                                        <p className="text-gray-600 text-sm mb-4">
+                                            Para conectar ChatGPT, necesitas dos credenciales:
+                                        </p>
+
+                                        <div className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-gray-700 mb-1">Client ID (Tu User ID):</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <code className="flex-1 bg-white px-3 py-2 rounded border border-gray-300 text-sm font-mono">
+                                                            {userId || 'Cargando...'}
+                                                        </code>
+                                                        {userId && (
+                                                            <button
+                                                                onClick={() => copyToClipboard(userId, 'user-id')}
+                                                                className="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-white text-xs"
+                                                            >
+                                                                {copiedSection === 'user-id' ? '✓' : 'Copiar'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <p className="text-sm font-semibold text-gray-700 mb-1">Client Secret (Tu API Key):</p>
+                                                    <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                                                        <p className="text-sm text-blue-800">
+                                                            📌 Obtén tu API Key en la sección{' '}
+                                                            <a href="/api-key" className="font-semibold underline hover:text-blue-900">
+                                                                API Keys
+                                                            </a>
+                                                            {' '}del dashboard
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="font-semibold text-gray-900 mb-3">Paso 3: Configurar Custom GPT</h4>
+                                        <p className="text-gray-600 text-sm mb-3">
+                                            En ChatGPT, crea un nuevo Custom GPT y configura la autenticación:
+                                        </p>
+
+                                        <div className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
+                                            <p className="text-sm font-semibold text-gray-700 mb-2">Configuración OAuth:</p>
+                                            <div className="space-y-2 text-sm text-gray-600">
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <span className="font-medium">Authentication Type:</span>
+                                                    <span className="col-span-2">OAuth</span>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <span className="font-medium">Client ID:</span>
+                                                    <span className="col-span-2 font-mono text-xs break-all">{userId || '[tu-user-id]'}</span>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <span className="font-medium">Client Secret:</span>
+                                                    <span className="col-span-2 font-mono text-xs">[tu-api-key]</span>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <span className="font-medium">Authorization URL:</span>
+                                                    <span className="col-span-2 font-mono text-xs break-all">{appUrl}/api/oauth/authorize</span>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <span className="font-medium">Token URL:</span>
+                                                    <span className="col-span-2 font-mono text-xs break-all">{appUrl}/api/oauth/token</span>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <span className="font-medium">Scope:</span>
+                                                    <span className="col-span-2 font-mono text-xs">documents:write templates:read</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="font-semibold text-gray-900 mb-3">Paso 4: Definir Actions</h4>
+                                        <p className="text-gray-600 text-sm mb-3">
+                                            Agrega el siguiente schema OpenAPI a tu Custom GPT:
+                                        </p>
+                                        <div className="relative">
+                                            <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm max-h-96">
+                                                <code>{`openapi: 3.0.0
+info:
+  title: PDFGenAI API
+  version: 1.0.0
+servers:
+  - url: ${appUrl}/api/v1
+paths:
+  /templates:
+    get:
+      operationId: listTemplates
+      summary: List available PDF templates
+      responses:
+        '200':
+          description: List of templates
+  /generate:
+    post:
+      operationId: generatePDF
+      summary: Generate a PDF document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - template_id
+                - data
+              properties:
+                template_id:
+                  type: string
+                  description: ID of the template to use
+                data:
+                  type: object
+                  description: Data to fill the template
+                filename:
+                  type: string
+                  description: Optional filename for the PDF
+      responses:
+        '200':
+          description: PDF generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document_id:
+                    type: string
+                  filename:
+                    type: string
+                  download_url:
+                    type: string`}</code>
+                                            </pre>
+                                            <button
+                                                onClick={() => copyToClipboard(`openapi: 3.0.0\ninfo:\n  title: PDFGenAI API\n  version: 1.0.0\nservers:\n  - url: ${appUrl}/api/v1\npaths:\n  /templates:\n    get:\n      operationId: listTemplates\n      summary: List available PDF templates\n      responses:\n        '200':\n          description: List of templates\n  /generate:\n    post:\n      operationId: generatePDF\n      summary: Generate a PDF document\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              required:\n                - template_id\n                - data\n              properties:\n                template_id:\n                  type: string\n                  description: ID of the template to use\n                data:\n                  type: object\n                  description: Data to fill the template\n                filename:\n                  type: string\n                  description: Optional filename for the PDF\n      responses:\n        '200':\n          description: PDF generated successfully\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  document_id:\n                    type: string\n                  filename:\n                    type: string\n                  download_url:\n                    type: string`, 'openapi-schema')}
+                                                className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded text-white text-xs"
+                                            >
+                                                {copiedSection === 'openapi-schema' ? '✓ Copiado' : 'Copiar'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <p className="text-sm text-green-800">
+                                            <strong>¡Listo!</strong> Ahora puedes pedirle a tu Custom GPT que genere PDFs usando lenguaje natural.
+                                        </p>
+                                        <p className="text-sm text-green-700 mt-2 italic">
+                                            Ejemplo: &quot;Genera una factura para el cliente John Doe con número INV-001 y total de $100&quot;
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>

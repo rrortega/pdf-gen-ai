@@ -10,6 +10,8 @@ export default function ApiKeyPage() {
     const [generating, setGenerating] = useState(false);
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmText, setConfirmText] = useState("");
 
     useEffect(() => {
         const fetchApiKey = async () => {
@@ -33,10 +35,17 @@ export default function ApiKeyPage() {
         fetchApiKey();
     }, [t]);
 
+    const handleRegenerateClick = () => {
+        setShowConfirmModal(true);
+        setConfirmText("");
+    };
+
     const handleGenerate = async () => {
         try {
             setGenerating(true);
             setError(null);
+            setShowConfirmModal(false);
+            setConfirmText("");
             const response = await fetch("/api/v1/auth/api-key", {
                 method: "POST",
             });
@@ -62,6 +71,8 @@ export default function ApiKeyPage() {
     };
 
     const [activeExampleTab, setActiveExampleTab] = useState<"sync" | "async">("sync");
+
+    const isConfirmTextValid = confirmText.toLowerCase() === "entiendo los riesgos";
 
     return (
         <div className="p-8 max-w-4xl mx-auto">

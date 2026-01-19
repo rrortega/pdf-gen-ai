@@ -1,0 +1,21 @@
+{
+  "name": "pdf4ia-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PDF4IA - Alternative to PDF Monkey",
+  "scripts": {
+    "build": "cd pdf4ia && npm run build",
+    "dev": "cd pdf4ia && npm run dev",
+    "start": "cd pdf4ia && npm run start",
+    "lint": "cd pdf4ia && npm run lint",
+    "test": "cd pdf4ia && node test-setup.js"
+  },
+  "keywords": [
+    "pdf",
+    "generator",
+    "appwrite",
+    "nextjs"
+  ],
+  "author": "",
+  "license": "MIT"
+}

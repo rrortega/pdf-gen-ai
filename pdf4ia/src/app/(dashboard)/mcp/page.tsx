@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useI18n } from "@/hooks/useI18n";
 import dynamic from 'next/dynamic';
 
 const MermaidDiagram = dynamic(() => import('@/components/MermaidDiagram'), {
@@ -10,9 +9,8 @@ const MermaidDiagram = dynamic(() => import('@/components/MermaidDiagram'), {
 });
 
 export default function MCPServerPage() {
-    const { t } = useI18n();
     const [copiedSection, setCopiedSection] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'claude' | 'vscode' | 'n8n' | 'langchain' | 'chatgpt'>('claude');
+    const [activeTab, setActiveTab] = useState<'claude' | 'vscode' | 'n8n' | 'langchain' | 'chatgpt' | 'postman'>('claude');
     const [userId, setUserId] = useState<string>('');
 
     // Get the app URL from environment or use localhost as fallback
@@ -163,7 +161,7 @@ const result = await client.callTool({
                                     <strong>Ejemplo de uso:</strong>
                                 </p>
                                 <p className="text-sm text-gray-600 italic">
-                                    "Genera una factura para el cliente John Doe con número INV-001 y total de $100"
+                                    &quot;Genera una factura para el cliente John Doe con número INV-001 y total de $100&quot;
                                 </p>
                             </div>
                         </div>
@@ -251,6 +249,15 @@ const result = await client.callTool({
                                     }`}
                             >
                                 ChatGPT
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('postman')}
+                                className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${activeTab === 'postman'
+                                    ? 'border-gray-900 text-gray-900'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                            >
+                                Postman / Manual
                             </button>
                         </nav>
                     </div>
@@ -617,7 +624,81 @@ paths:
                         </div>
                     )}
 
-                    {/* Common Steps */}
+                    {/* Postman Tab */}
+                    {activeTab === 'postman' && (
+                        <div className="space-y-6">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-3">Pruebas Manuales con Postman</h3>
+                                <p className="text-gray-600 mb-6">
+                                    Puedes probar el servidor MCP manualmente usando Postman o cualquier cliente HTTP que soporte SSE (Server-Sent Events).
+                                </p>
+
+                                <div className="space-y-8">
+                                    {/* Step 1 */}
+                                    <div className="flex gap-4">
+                                        <div className="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold">1</div>
+                                        <div className="flex-1">
+                                            <h4 className="font-semibold text-gray-900 mb-2">Establecer conexión SSE</h4>
+                                            <p className="text-sm text-gray-600 mb-3">
+                                                Crea una solicitud <strong>GET</strong> para inicializar el transporte SSE.
+                                            </p>
+                                            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-3">
+                                                <div>
+                                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-1">URL</p>
+                                                    <code className="text-sm break-all">{appUrl}/mcp-server</code>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Headers</p>
+                                                    <code className="text-sm">Accept: text/event-stream</code>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm text-gray-600 mt-3">
+                                                En Postman, verás que la conexión se queda abierta. Busca el evento <code className="bg-gray-100 px-1 rounded">endpoint</code> en la respuesta. Contendrá una URL como:
+                                            </p>
+                                            <code className="block mt-2 text-sm bg-gray-100 p-2 rounded border border-gray-200">
+                                                data: /api/mcp?sessionId=XYZ_123_ABC
+                                            </code>
+                                        </div>
+                                    </div>
+
+                                    {/* Step 2 */}
+                                    <div className="flex gap-4">
+                                        <div className="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold">2</div>
+                                        <div className="flex-1">
+                                            <h4 className="font-semibold text-gray-900 mb-2">Enviar mensajes MCP</h4>
+                                            <p className="text-sm text-gray-600 mb-3">
+                                                Crea una nueva solicitud <strong>POST</strong> usando el endpoint y sessionId recibidos en el paso anterior.
+                                            </p>
+                                            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 mb-4 space-y-3">
+                                                <div>
+                                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-1">URL</p>
+                                                    <code className="text-sm break-all">{appUrl}/api/mcp?sessionId=TU_SESSION_ID</code>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Authentication</p>
+                                                    <p className="text-sm text-gray-600 italic">Bearer Token (Tu API Key) o Sesión Activa</p>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm text-gray-600 mb-2 font-semibold">Cuerpo de la solicitud (JSON):</p>
+                                            <div className="relative">
+                                                <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm">
+                                                    <code>{`{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list",
+  "params": {}
+}`}</code>
+                                                </pre>
+                                            </div>
+                                            <p className="text-sm text-gray-600 mt-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                                💡 <strong>Tip:</strong> Si el comando es exitoso, verás la respuesta en el flujo SSE que dejaste abierto en el Paso 1, no en la respuesta del POST (que debería ser 202 Accepted).
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     <div className="mt-8 pt-6 border-t border-gray-200">
                         <h3 className="text-lg font-bold text-gray-900 mb-4">Pasos Comunes</h3>
                         <div className="space-y-4">
@@ -691,7 +772,7 @@ paths:
                                     <div className="bg-gray-50 rounded p-3 mb-2">
                                         <p className="text-sm font-semibold text-gray-700 mb-1">Ejemplo de uso:</p>
                                         <p className="text-sm text-gray-600 italic">
-                                            "Genera una factura para el cliente John Doe con número INV-001 y total de $100"
+                                            &quot;Genera una factura para el cliente John Doe con número INV-001 y total de $100&quot;
                                         </p>
                                     </div>
                                     <details className="mt-3">
@@ -724,7 +805,7 @@ paths:
                                     <div className="bg-gray-50 rounded p-3">
                                         <p className="text-sm font-semibold text-gray-700 mb-1">Ejemplo de uso:</p>
                                         <p className="text-sm text-gray-600 italic">
-                                            "Muéstrame todas las plantillas de facturas disponibles"
+                                            &quot;Muéstrame todas las plantillas de facturas disponibles&quot;
                                         </p>
                                     </div>
                                 </div>
@@ -749,7 +830,7 @@ paths:
                                     <div className="bg-gray-50 rounded p-3">
                                         <p className="text-sm font-semibold text-gray-700 mb-1">Ejemplo de uso:</p>
                                         <p className="text-sm text-gray-600 italic">
-                                            "Muéstrame los últimos 10 PDFs generados"
+                                            &quot;Muéstrame los últimos 10 PDFs generados&quot;
                                         </p>
                                     </div>
                                 </div>
@@ -774,7 +855,7 @@ paths:
                                     <div className="bg-gray-50 rounded p-3">
                                         <p className="text-sm font-semibold text-gray-700 mb-1">Ejemplo de uso:</p>
                                         <p className="text-sm text-gray-600 italic">
-                                            "Dame el enlace de descarga del documento doc_abc123"
+                                            &quot;Dame el enlace de descarga del documento doc_abc123&quot;
                                         </p>
                                     </div>
                                 </div>
@@ -799,7 +880,7 @@ paths:
                                     <div className="bg-gray-50 rounded p-3">
                                         <p className="text-sm font-semibold text-gray-700 mb-1">Ejemplo de uso:</p>
                                         <p className="text-sm text-gray-600 italic">
-                                            "Busca todas las facturas generadas en enero de 2024"
+                                            &quot;Busca todas las facturas generadas en enero de 2024&quot;
                                         </p>
                                     </div>
                                 </div>

@@ -145,8 +145,11 @@ function getOrCreateServer() {
     return server;
 }
 
-// Map to store transports by sessionId
-const transports = new Map<string, SSEServerTransport>();
+// Map to store transports by sessionId, using global to persist across HMR in dev
+const transports = ((global as any).mcpTransports as Map<string, any>) || new Map<string, any>();
+if (process.env.NODE_ENV !== 'production') {
+    (global as any).mcpTransports = transports;
+}
 
 export async function POST(request: NextRequest) {
     const sessionId = request.nextUrl.searchParams.get('sessionId');
@@ -159,8 +162,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    await transport.handlePostMessage(request as unknown as any, request as unknown as any);
-    return new Response(null, { status: 202 });
+    try {
+        const message = await request.json();
+        if (transport.onmessage) {
+            await transport.onmessage(message);
+        }
+        return new Response(null, { status: 202 });
+    } catch (error) {
+        return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    }
 }
 
 export { transports, getOrCreateServer };

@@ -210,7 +210,7 @@ export async function POST() {
       await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_tokens", key: "created_at", size: 50, required: true });
 
       console.log("OAuth Tokens table created");
-    } catch (error: unknown) {
+    } catch {
       console.log("OAuth Tokens table might already exist");
     }
 
@@ -238,7 +238,7 @@ export async function POST() {
       await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_codes", key: "created_at", size: 50, required: true });
 
       console.log("OAuth Codes table created");
-    } catch (error: unknown) {
+    } catch {
       console.log("OAuth Codes table might already exist");
     }
 

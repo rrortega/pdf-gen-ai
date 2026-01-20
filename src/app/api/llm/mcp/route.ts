@@ -21,6 +21,14 @@ if (!(global as any).mcpTransports) {
     (global as any).mcpTransports = transports;
 }
 
+// Debug logging helper
+const isDebug = process.env.MCP_DEBUG === "true";
+function debugLog(message: string, data?: any) {
+    if (isDebug) {
+        console.log(`[MCP_DEBUG] ${message}`, data ? JSON.stringify(data, null, 2) : '');
+    }
+}
+
 function getOrCreateServer() {
     if (serverInstance) return serverInstance;
 
@@ -160,6 +168,11 @@ export async function GET(request: NextRequest) {
     const start = Date.now();
     console.log('[MCP] SSE handshake attempt starting');
 
+    // Log headers if debug is on
+    const headers: Record<string, string> = {};
+    request.headers.forEach((v, k) => { headers[k] = v; });
+    debugLog('Incoming SSE Headers:', headers);
+
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
     const encoder = new TextEncoder();
@@ -270,43 +283,92 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST: Message Processing
- * Handles MCP protocol messages
+ * Handles MCP protocol messages (both stateful with sessionId and stateless)
  */
 export async function POST(request: NextRequest) {
     const postStart = Date.now();
     try {
-        // Validate authentication
+        // 1. Validate authentication
         const authHeader = request.headers.get("Authorization");
         const isValid = await validateHybridToken(authHeader);
 
         if (!isValid) {
-            return new NextResponse("Unauthorized", { status: 401 });
+            return new NextResponse("Unauthorized", {
+                status: 401,
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            });
         }
 
+        const message = await request.json();
         const searchParams = request.nextUrl.searchParams;
         const sessionId = searchParams.get('sessionId');
 
+        debugLog('Incoming POST Body:', message);
+        debugLog('Query Parameters:', Object.fromEntries(searchParams.entries()));
+
+        // CASE A: Stateless POST (No sessionId)
+        // Useful for one-off tool calls from non-SSE clients (e.g., standard agent scripts)
         if (!sessionId) {
-            console.warn('[MCP] POST attempt missing sessionId');
-            return new NextResponse("Missing sessionId. Ensure you initialized SSE connection first.", { status: 400 });
+            console.log('[MCP] Handling stateless POST request');
+            const server = getOrCreateServer();
+
+            let responseMessage: any = null;
+            // Simple bridge transport that captures a single response
+            const transport = {
+                onclose: undefined,
+                onmessage: undefined,
+                send: async (msg: any) => { responseMessage = msg; },
+                close: async () => { },
+                start: async () => { }
+            };
+
+            // Connect, process, and return result
+            await server.connect(transport as any);
+            if ((transport as any).onmessage) {
+                await (transport as any).onmessage(message);
+            }
+
+            if (responseMessage) {
+                console.log(`[MCP] Stateless POST fulfilled in ${Date.now() - postStart}ms`);
+                return new Response(JSON.stringify(responseMessage), {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    }
+                });
+            }
+
+            return new Response("OK", {
+                status: 200,
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            });
         }
 
+        // CASE B: Stateful POST (With sessionId)
+        // Standard MCP SSE protocol
         const transport = transports.get(sessionId);
         if (!transport) {
             console.warn(`[MCP] POST attempt with invalid sessionId: ${sessionId}`);
-            return new NextResponse(`Invalid or expired session: ${sessionId}. Please reconnect via SSE.`, { status: 404 });
+            return new NextResponse(`Invalid or expired session: ${sessionId}. Please reconnect via SSE.`, {
+                status: 404,
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            });
         }
 
         // Attach request for tool context
         (transport as any).request = request;
-
-        const message = await request.json();
         await (transport as any).onmessage?.(message);
 
-        console.log(`[MCP] POST message processed for ${sessionId} in ${Date.now() - postStart}ms`);
-        return new NextResponse("OK", { status: 200 });
+        console.log(`[MCP] Stateful POST message processed for ${sessionId} in ${Date.now() - postStart}ms`);
+        return new Response("OK", {
+            status: 200,
+            headers: { 'Access-Control-Allow-Origin': '*' }
+        });
     } catch (error) {
         console.error('[MCP] POST Error:', error);
-        return new NextResponse((error as Error).message, { status: 500 });
+        return new Response((error as Error).message, {
+            status: 500,
+            headers: { 'Access-Control-Allow-Origin': '*' }
+        });
     }
 }

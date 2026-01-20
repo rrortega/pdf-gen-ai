@@ -38,7 +38,7 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthUse
                     isApiKey: true
                 };
             }
-        } catch (_error) {
+        } catch {
             // Not a local JWT or expired, try OAuth Service
             try {
                 const oauthToken = await OAuthTokensService.verifyToken(token);

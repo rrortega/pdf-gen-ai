@@ -10,12 +10,11 @@ import { DATABASE_ID, COLLECTIONS } from "@/lib/appwrite";
 import { PDFGenerator } from "@/lib/pdf-generator";
 import { Query } from "node-appwrite";
 
-// Global server instance
-let serverInstance: McpServer | null = null;
+// Environment constants
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-me";
 const encoder = new TextEncoder();
 
-// Global transports map (persists across HMR)
+// Global server instance and transports map (persists across HMR)
 const transports = ((global as any).mcpTransports as Map<string, SSEServerTransport>) || new Map<string, SSEServerTransport>();
 if (!(global as any).mcpTransports) {
     (global as any).mcpTransports = transports;
@@ -29,8 +28,11 @@ function debugLog(message: string, data?: any) {
     }
 }
 
+/**
+ * Singleton getter for the MCP Server instance
+ */
 function getOrCreateServer() {
-    if (serverInstance) return serverInstance;
+    if ((global as any).mcpServerInstance) return (global as any).mcpServerInstance;
 
     const server = new McpServer({
         name: 'PDF GenAI-MCP',
@@ -121,7 +123,7 @@ function getOrCreateServer() {
         }
     );
 
-    // Tool: list_templates
+    // Tool: list_pdf_templates
     server.tool(
         "list_pdf_templates",
         {},
@@ -156,32 +158,27 @@ function getOrCreateServer() {
         }
     );
 
-    serverInstance = server;
+    (global as any).mcpServerInstance = server;
     return server;
 }
 
 /**
  * GET: SSE Handshake
- * Establishes the Server-Sent Events connection
  */
 export async function GET(request: NextRequest) {
     const start = Date.now();
-    console.log('[MCP] SSE handshake attempt starting');
+    debugLog('SSE handshake attempt starting');
 
-    // Log headers if debug is on
-    const headers: Record<string, string> = {};
-    request.headers.forEach((v, k) => { headers[k] = v; });
-    debugLog('Incoming SSE Headers:', headers);
+    // Log headers
+    const reqHeaders: Record<string, string> = {};
+    request.headers.forEach((v, k) => { reqHeaders[k] = v; });
+    debugLog('Incoming SSE Headers:', reqHeaders);
 
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
-    const encoder = new TextEncoder();
 
-    // BACKGROUND TASK: Handle authentication and handshake logic
-    // We do this to return the Response object immediately and prevent timeouts
     (async () => {
         try {
-            // 1. Validate authentication (from the original request headers)
             const authHeader = request.headers.get("Authorization");
             const isValid = await validateHybridToken(authHeader);
 
@@ -192,31 +189,23 @@ export async function GET(request: NextRequest) {
                 return;
             }
 
-            console.log(`[MCP] Auth validated in ${Date.now() - start}ms`);
-
-            // 2. Initialize MCP Server instance
             const server = getOrCreateServer();
-
-            // 3. Setup SSEServerTransport mock with the direct stream writer
             const resMock = {
                 statusCode: 200,
                 setHeader: () => resMock,
                 getHeader: () => undefined,
                 removeHeader: () => resMock,
                 writeHead: () => resMock,
-                write: (chunk: unknown, _encoding?: string, callback?: () => void) => {
-                    if (typeof callback === 'function') callback();
-                    const data = typeof chunk === 'string' ? encoder.encode(chunk) : (chunk as Uint8Array);
-                    writer.write(data).catch(err => console.error('[MCP] Writer write error:', err));
+                write: (chunk: any) => {
+                    const data = typeof chunk === 'string' ? encoder.encode(chunk) : chunk;
+                    writer.write(data).catch(() => { });
                     return true;
                 },
-                end: (chunk?: unknown, _encoding?: string, callback?: () => void) => {
+                end: (chunk?: any) => {
                     if (chunk) {
-                        const data = typeof chunk === 'string' ? encoder.encode(chunk) : (chunk as Uint8Array);
-                        writer.write(data).catch(err => console.error('[MCP] Writer end error:', err));
+                        const data = typeof chunk === 'string' ? encoder.encode(chunk) : chunk;
+                        writer.write(data).catch(() => { });
                     }
-                    if (typeof callback === 'function') callback();
-                    // Do NOT close writer here, let transport or signal handle it
                     return resMock;
                 },
                 on: () => resMock,
@@ -228,48 +217,32 @@ export async function GET(request: NextRequest) {
 
             const transport = new SSEServerTransport('/api/llm/mcp', resMock as any);
             const sessionId = (transport as any).sessionId;
-
-            if (!sessionId) {
-                throw new Error("Failed to generate sessionId");
-            }
+            if (!sessionId) throw new Error("Failed to generate sessionId");
 
             transports.set(sessionId, transport);
             (transport as any).request = request;
 
-            // 4. Connect server to transport
             await server.connect(transport);
             console.log(`[MCP] SSE session ${sessionId} connected in ${Date.now() - start}ms`);
 
-            // 5. Initial flush to unblock proxies (comment)
+            // Initial flush & heartbeat
             await writer.write(encoder.encode(': mcp-initial-flush\n\n'));
-
-            // 6. Keep-alive heartbeat every 15s
-            const keepAliveInterval = setInterval(() => {
-                writer.write(encoder.encode(': heartbeat\n\n')).catch(() => {
-                    clearInterval(keepAliveInterval);
-                });
+            const keepAlive = setInterval(() => {
+                writer.write(encoder.encode(': heartbeat\n\n')).catch(() => clearInterval(keepAlive));
             }, 15000);
 
-            // Cleanup when connection closes
             request.signal.addEventListener('abort', () => {
-                console.log(`[MCP] SSE session ${sessionId} aborted`);
-                clearInterval(keepAliveInterval);
+                clearInterval(keepAlive);
                 transports.delete(sessionId);
-                try {
-                    writer.close().catch(() => { });
-                } catch { /* already closed */ }
+                writer.close().catch(() => { });
             });
 
         } catch (error) {
-            console.error('[MCP] SSE Handshake Background Error:', error);
-            try {
-                await writer.write(encoder.encode(`event: error\ndata: ${(error as Error).message}\n\n`));
-                await writer.close();
-            } catch { /* ignore */ }
+            console.error('[MCP] SSE Handshake Error:', error);
+            try { await writer.close(); } catch { }
         }
     })();
 
-    // RETURN RESPONSE IMMEDIATELY
     return new Response(readable, {
         headers: {
             'Content-Type': 'text/event-stream',
@@ -282,21 +255,16 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST: Message Processing
- * Handles MCP protocol messages (both stateful with sessionId and stateless)
+ * POST: Message Processing (Stateful & Stateless)
  */
 export async function POST(request: NextRequest) {
     const postStart = Date.now();
     try {
-        // 1. Validate authentication
         const authHeader = request.headers.get("Authorization");
         const isValid = await validateHybridToken(authHeader);
 
         if (!isValid) {
-            return new NextResponse("Unauthorized", {
-                status: 401,
-                headers: { 'Access-Control-Allow-Origin': '*' }
-            });
+            return new NextResponse("Unauthorized", { status: 401, headers: { 'Access-Control-Allow-Origin': '*' } });
         }
 
         const message = await request.json();
@@ -306,69 +274,63 @@ export async function POST(request: NextRequest) {
         debugLog('Incoming POST Body:', message);
         debugLog('Query Parameters:', Object.fromEntries(searchParams.entries()));
 
-        // CASE A: Stateless POST (No sessionId)
-        // Useful for one-off tool calls from non-SSE clients (e.g., standard agent scripts)
+        // CASE A: Stateless POST (Wait for individual tool response)
         if (!sessionId) {
-            console.log('[MCP] Handling stateless POST request');
+            debugLog('Handling stateless POST request');
             const server = getOrCreateServer();
 
-            let responseMessage: any = null;
-            // Simple bridge transport that captures a single response
-            const transport = {
-                onclose: undefined,
-                onmessage: undefined,
-                send: async (msg: any) => { responseMessage = msg; },
-                close: async () => { },
-                start: async () => { }
-            };
+            const response = await new Promise<any>((resolve) => {
+                const timeout = setTimeout(() => {
+                    resolve({
+                        jsonrpc: "2.0",
+                        id: message.id || null,
+                        error: { code: -32000, message: "MCP Server response timeout (10s)" }
+                    });
+                }, 10000);
 
-            // Connect, process, and return result
-            await server.connect(transport as any);
-            if ((transport as any).onmessage) {
-                await (transport as any).onmessage(message);
-            }
+                const transport = {
+                    onclose: undefined,
+                    onmessage: undefined,
+                    send: async (msg: any) => {
+                        clearTimeout(timeout);
+                        resolve(msg);
+                    },
+                    close: async () => { },
+                    start: async () => { }
+                };
 
-            if (responseMessage) {
-                console.log(`[MCP] Stateless POST fulfilled in ${Date.now() - postStart}ms`);
-                return new Response(JSON.stringify(responseMessage), {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*'
-                    }
+                // Connect with custom context
+                server.connect(transport as any).then(() => {
+                    (transport as any).onmessage?.(message, { request });
+                }).catch(err => {
+                    clearTimeout(timeout);
+                    resolve({ jsonrpc: "2.0", id: message.id || null, error: { code: -32603, message: err.message } });
                 });
-            }
+            });
 
-            return new Response("OK", {
-                status: 200,
-                headers: { 'Access-Control-Allow-Origin': '*' }
+            console.log(`[MCP] Stateless POST fulfilled in ${Date.now() - postStart}ms`);
+            return new Response(JSON.stringify(response), {
+                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
             });
         }
 
-        // CASE B: Stateful POST (With sessionId)
-        // Standard MCP SSE protocol
+        // CASE B: Stateful POST
         const transport = transports.get(sessionId);
         if (!transport) {
-            console.warn(`[MCP] POST attempt with invalid sessionId: ${sessionId}`);
-            return new NextResponse(`Invalid or expired session: ${sessionId}. Please reconnect via SSE.`, {
-                status: 404,
-                headers: { 'Access-Control-Allow-Origin': '*' }
-            });
+            return new NextResponse(`Session ${sessionId} not found`, { status: 404, headers: { 'Access-Control-Allow-Origin': '*' } });
         }
 
-        // Attach request for tool context
         (transport as any).request = request;
-        await (transport as any).onmessage?.(message);
 
-        console.log(`[MCP] Stateful POST message processed for ${sessionId} in ${Date.now() - postStart}ms`);
-        return new Response("OK", {
-            status: 200,
-            headers: { 'Access-Control-Allow-Origin': '*' }
-        });
+        // Feed the message to the transport's onmessage handler (which the server connected to)
+        if ((transport as any).onmessage) {
+            await (transport as any).onmessage(message, { request });
+        }
+
+        return new Response("OK", { status: 200, headers: { 'Access-Control-Allow-Origin': '*' } });
+
     } catch (error) {
         console.error('[MCP] POST Error:', error);
-        return new Response((error as Error).message, {
-            status: 500,
-            headers: { 'Access-Control-Allow-Origin': '*' }
-        });
+        return new NextResponse((error as Error).message, { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } });
     }
 }

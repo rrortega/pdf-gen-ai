@@ -94,4 +94,8 @@ export const getServerAppwriteAvatars = () => {
   return new sdk.Avatars(getServerAppwriteClient());
 };
 
+export const getServerAppwriteUsers = () => {
+  return new sdk.Users(getServerAppwriteClient());
+};
+
 export { Permission, Role, ID };

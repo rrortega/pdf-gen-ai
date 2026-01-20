@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { getAppwriteAccount, getServerAppwriteClient, getAppwriteClient, getSessionSecret } from "./appwrite";
 import { Client, TablesDB, Storage } from "node-appwrite";
-import { OAuthTokensService } from "./oauth-service";
+import { OAuthClientsService, OAuthTokensService } from "./oauth-service";
 
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-me";
 const encoder = new TextEncoder();
@@ -202,15 +202,23 @@ export async function validateHybridToken(authHeader: string | null): Promise<bo
         // Not a JWT, continue to OAuth check
     }
 
-    // 3. Try to verify as OAuth token
+    // 3. Try to verify as OAuth token or Direct API Key
     try {
+        // First try standard OAuth token lookup
         const oauthToken = await OAuthTokensService.verifyToken(token);
         if (oauthToken) {
             console.log('[HYBRID_AUTH] Validated via OAuth token');
             return true;
         }
+
+        // Then try direct API key lookup (new hybrid requirement)
+        const userId = await OAuthClientsService.getUserIdFromApiKey(token);
+        if (userId) {
+            console.log('[HYBRID_AUTH] Validated via Direct API key (User Prefs)');
+            return true;
+        }
     } catch (error) {
-        console.error('[HYBRID_AUTH] OAuth verification failed:', error);
+        console.error('[HYBRID_AUTH] Token/Key verification failed:', error);
     }
 
     console.warn('[HYBRID_AUTH] Token validation failed');

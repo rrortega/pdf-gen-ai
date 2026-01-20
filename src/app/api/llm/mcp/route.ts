@@ -33,7 +33,7 @@ function getOrCreateServer() {
         "generate_pdf",
         {
             template_id: z.string().describe('The ID of the template to use'),
-            data: z.record(z.string(), z.any()).describe('Dynamic data to inject (JSON object)'),
+            data: z.record(z.string(), z.any()).describe('Dynamic data to inject (JSON object) in response to the template schema of the test_data attribute'),
             name: z.string().describe('Filename for the generated PDF'),
         },
         async ({ template_id, data, name }, extra) => {
@@ -134,7 +134,7 @@ function getOrCreateServer() {
                 .map(t => ({
                     id: t.$id,
                     title: t.title,
-                    description: t.description,
+                    test_data: Buffer.from(t.test_data, 'base64').toString('utf8'),
                     tags: t.tags
                 }));
 

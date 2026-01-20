@@ -1,4 +1,4 @@
-import { getServerAppwriteTables, DATABASE_ID } from './appwrite';
+import { getServerAppwriteTables, getServerAppwriteUsers, DATABASE_ID } from './appwrite';
 import { ID, Query } from 'node-appwrite';
 import {
     OAuthToken,
@@ -11,7 +11,6 @@ import {
 // Collection IDs
 export const OAUTH_TOKENS_COLLECTION = process.env.OAUTH_TOKENS_COLLECTION_ID || 'oauth_tokens';
 export const OAUTH_CODES_COLLECTION = process.env.OAUTH_CODES_COLLECTION_ID || 'oauth_codes';
-export const API_KEYS_COLLECTION = process.env.API_KEYS_COLLECTION_ID || 'api_keys';
 
 /**
  * OAuth Clients Service
@@ -23,19 +22,12 @@ export class OAuthClientsService {
      */
     static async verifyClient(userId: string, apiKey: string): Promise<boolean> {
         try {
-            const tables = getServerAppwriteTables();
-            // Verify that the API key belongs to this user
-            const response = await tables.listRows({
-                databaseId: DATABASE_ID,
-                tableId: API_KEYS_COLLECTION,
-                queries: [
-                    Query.equal('user_id', userId),
-                    Query.equal('key', apiKey),
-                    Query.limit(1)
-                ]
-            });
+            const users = getServerAppwriteUsers();
+            const user = await users.get(userId);
 
-            return response.rows.length > 0;
+            // Check if the provided API key matches the one in user prefs
+            // User confirmed the API key is stored in the user object
+            return user.prefs?.apikey === apiKey;
         } catch (error) {
             console.error('Error verifying OAuth client:', error);
             return false;
@@ -44,23 +36,23 @@ export class OAuthClientsService {
 
     /**
      * Get user ID from API key
+     * Note: This is more expensive now as we have to list users.
+     * Only use if necessary. In standard OAuth, we have the client_id (userId).
      */
     static async getUserIdFromApiKey(apiKey: string): Promise<string | null> {
         try {
-            const tables = getServerAppwriteTables();
-            const response = await tables.listRows({
-                databaseId: DATABASE_ID,
-                tableId: API_KEYS_COLLECTION,
-                queries: [Query.equal('key', apiKey), Query.limit(1)]
-            });
+            const users = getServerAppwriteUsers();
+            // Appwrite doesn't support searching prefs directly via users.list.
+            // We list the most recent users and find the one with the matching key.
+            const response = await users.list([
+                Query.orderDesc('$createdAt'),
+                Query.limit(100)
+            ]);
 
-            if (response.rows.length === 0) {
-                return null;
-            }
-
-            return response.rows[0].user_id;
+            const user = response.users.find(u => u.prefs?.apikey === apiKey);
+            return user?.$id || null;
         } catch (error) {
-            console.error('Error getting user from API key:', error);
+            console.error('Error finding user from API key:', error);
             return null;
         }
     }

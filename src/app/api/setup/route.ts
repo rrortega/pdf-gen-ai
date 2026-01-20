@@ -187,6 +187,61 @@ export async function POST() {
       console.log("Documents table might already exist:", message);
     }
 
+    // Create OAuth Tokens Collection
+    try {
+      await tables.createTable({
+        databaseId: DATABASE_ID,
+        tableId: "oauth_tokens",
+        name: "OAuth Tokens",
+        permissions: [
+          sdk.Permission.read(sdk.Role.users()),
+          sdk.Permission.write(sdk.Role.users()),
+          sdk.Permission.delete(sdk.Role.users()),
+        ],
+      });
+
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_tokens", key: "client_id", size: 255, required: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_tokens", key: "user_id", size: 255, required: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_tokens", key: "access_token", size: 1000, required: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_tokens", key: "refresh_token", size: 1000, required: false });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_tokens", key: "token_type", size: 50, required: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_tokens", key: "expires_at", size: 50, required: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_tokens", key: "scopes", size: 255, required: true, array: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_tokens", key: "created_at", size: 50, required: true });
+
+      console.log("OAuth Tokens table created");
+    } catch (error: unknown) {
+      console.log("OAuth Tokens table might already exist");
+    }
+
+    // Create OAuth Codes Collection
+    try {
+      await tables.createTable({
+        databaseId: DATABASE_ID,
+        tableId: "oauth_codes",
+        name: "OAuth Codes",
+        permissions: [
+          sdk.Permission.read(sdk.Role.users()),
+          sdk.Permission.write(sdk.Role.users()),
+          sdk.Permission.delete(sdk.Role.users()),
+        ],
+      });
+
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_codes", key: "code", size: 255, required: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_codes", key: "client_id", size: 255, required: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_codes", key: "user_id", size: 255, required: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_codes", key: "redirect_uri", size: 500, required: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_codes", key: "scopes", size: 255, required: true, array: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_codes", key: "code_challenge", size: 255, required: false });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_codes", key: "code_challenge_method", size: 50, required: false });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_codes", key: "expires_at", size: 50, required: true });
+      await tables.createStringColumn({ databaseId: DATABASE_ID, tableId: "oauth_codes", key: "created_at", size: 50, required: true });
+
+      console.log("OAuth Codes table created");
+    } catch (error: unknown) {
+      console.log("OAuth Codes table might already exist");
+    }
+
     // Create Buckets
     try {
       await storage.createBucket({

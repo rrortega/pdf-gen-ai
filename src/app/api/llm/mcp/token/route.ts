@@ -8,7 +8,26 @@ import { verifyPKCE } from '@/lib/oauth';
  */
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
+        const contentType = request.headers.get('content-type') || '';
+        let body: Record<string, string> = {};
+
+        if (contentType.includes('application/x-www-form-urlencoded')) {
+            const formData = await request.formData();
+            formData.forEach((value, key) => {
+                body[key] = value.toString();
+            });
+        } else {
+            try {
+                body = await request.json();
+            } catch {
+                console.warn('[OAuth Token] Failed to parse as JSON, trying form data fallback');
+                const formData = await request.formData();
+                formData.forEach((value, key) => {
+                    body[key] = value.toString();
+                });
+            }
+        }
+
         const {
             grant_type,
             code,

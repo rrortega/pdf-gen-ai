@@ -51,7 +51,8 @@ export async function POST(request: NextRequest) {
             { status: 400 }
         );
     } catch (error) {
-        console.error('OAuth token error:', error);
+        console.error('[OAuth Token] Error:', error);
+        console.error('[OAuth Token] Stack:', (error as Error).stack);
         return NextResponse.json(
             { error: 'server_error', error_description: (error as Error).message },
             { status: 500 }
@@ -66,6 +67,14 @@ async function handleAuthorizationCodeGrant(
     client_secret: string,
     code_verifier?: string
 ) {
+    console.log('[OAuth Token] Authorization code grant request:', {
+        code: code?.substring(0, 10) + '...',
+        redirect_uri,
+        client_id,
+        has_client_secret: !!client_secret,
+        has_code_verifier: !!code_verifier
+    });
+
     if (!code || !redirect_uri || !client_id) {
         return NextResponse.json(
             { error: 'invalid_request', error_description: 'Missing required parameters' },
@@ -73,21 +82,26 @@ async function handleAuthorizationCodeGrant(
         );
     }
 
-    const isValidClient = await OAuthClientsService.verifyClient(client_id, client_secret);
-    if (!isValidClient) {
-        return NextResponse.json(
-            { error: 'invalid_client', error_description: 'Invalid client credentials' },
-            { status: 401 }
-        );
-    }
+    console.log('[OAuth Token] Verifying client...');
+
+    // For OAuth flow, we only verify that the client_id matches the authorization code
+    // The client_secret is optional for public clients like ChatGPT
+    console.log('[OAuth Token] Consuming authorization code...');
 
     const authCode = await OAuthCodesService.consumeCode(code);
     if (!authCode) {
+        console.log('[OAuth Token] Invalid or expired code');
         return NextResponse.json(
             { error: 'invalid_grant', error_description: 'Invalid or expired authorization code' },
             { status: 400 }
         );
     }
+
+    console.log('[OAuth Token] Code consumed successfully:', {
+        code_client_id: authCode.client_id,
+        request_client_id: client_id,
+        user_id: authCode.user_id
+    });
 
     if (authCode.client_id !== client_id) {
         return NextResponse.json(

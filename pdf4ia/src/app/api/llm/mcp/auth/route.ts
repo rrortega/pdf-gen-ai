@@ -16,6 +16,14 @@ export async function GET(request: NextRequest) {
         const codeChallengeMethod = searchParams.get('code_challenge_method') as 'S256' | 'plain' | null;
         const scope = searchParams.get('scope') || 'read write';
 
+        console.log('[OAuth Auth] Request received:', {
+            clientId,
+            redirectUri,
+            state,
+            scope,
+            hasCodeChallenge: !!codeChallenge
+        });
+
         // Validate required parameters
         if (!clientId || !redirectUri) {
             return new NextResponse('Missing required parameters: client_id and redirect_uri', { status: 400 });
@@ -27,15 +35,23 @@ export async function GET(request: NextRequest) {
             const account = await getAppwriteAccount();
             const user = await account.get();
             userId = user.$id;
+            console.log('[OAuth Auth] User authenticated:', userId);
         } catch {
-            // Redirect to login with return URL
+            // Redirect to consent page (which will handle login if needed)
             const baseUrl = process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
-            const loginUrl = new URL('/login', baseUrl);
-            loginUrl.searchParams.set('redirect', request.url);
-            return NextResponse.redirect(loginUrl);
+            const consentUrl = new URL('/oauth/consent', baseUrl);
+
+            // Pass all OAuth parameters to consent page
+            searchParams.forEach((value, key) => {
+                consentUrl.searchParams.set(key, value);
+            });
+
+            console.log('[OAuth Auth] User not authenticated, redirecting to consent page');
+            return NextResponse.redirect(consentUrl);
         }
 
-        // Generate authorization code
+        // User is authenticated, generate authorization code
+        console.log('[OAuth Auth] Generating authorization code...');
         const scopes = scope.split(' ');
         const { code } = await OAuthCodesService.createCode(
             clientId,
@@ -46,6 +62,8 @@ export async function GET(request: NextRequest) {
             codeChallengeMethod || undefined
         );
 
+        console.log('[OAuth Auth] Code generated, redirecting to:', redirectUri);
+
         // Redirect back to client with code
         const callbackUrl = new URL(redirectUri);
         callbackUrl.searchParams.set('code', code);
@@ -55,7 +73,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.redirect(callbackUrl.toString());
     } catch (error) {
-        console.error('OAuth authorization error:', error);
+        console.error('[OAuth Auth] Error:', error);
         return new NextResponse('Internal server error', { status: 500 });
     }
 }

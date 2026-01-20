@@ -95,6 +95,24 @@ npm start
 npm run lint
 ```
 
+## Deployment
+
+### Production Build
+```bash
+npm run build
+```
+
+### Production Runtime (Appwrite / Linux)
+When deploying to Appwrite or any restricted Linux environment, Puppeteer needs specialized configuration to find and run Chromium:
+
+1. **Local Cache**: We've included a `.puppeteerrc.cjs` file that forces Puppeteer to store the browser in a local `.cache` folder within the project. This avoids permission errors in `/root/.cache`.
+2. **Environment Variable**: Set `PUPPETEER_EXECUTABLE_PATH` to the path of your installed Chrome/Chromium binary (e.g., `/usr/bin/google-chrome-stable`) if you wish to override the auto-installed version.
+3. **Build Command**: In your Appwrite deployment settings, use the following command to ensure Chromium is downloaded into the project's local cache:
+   ```bash
+   npx puppeteer browsers install chrome && npm run build --turbo
+   ```
+4. **Internal Flags**: The application is already pre-configured with `--no-sandbox`, `--single-process`, and other production-grade flags.
+
 The development server runs on `http://localhost:3030`
 
 ## API Documentation

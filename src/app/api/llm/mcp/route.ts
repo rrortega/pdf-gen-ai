@@ -166,7 +166,6 @@ function getOrCreateServer() {
  * GET: SSE Handshake
  */
 export async function GET(request: NextRequest) {
-    const start = Date.now();
     debugLog('SSE handshake attempt starting');
 
     // 1. Auth Check (Wait for it, it's fast)

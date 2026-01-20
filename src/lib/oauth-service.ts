@@ -1,4 +1,4 @@
-import { getServerAppwriteDatabases, DATABASE_ID } from './appwrite';
+import { getServerAppwriteTables, DATABASE_ID } from './appwrite';
 import { ID, Query } from 'node-appwrite';
 import {
     OAuthToken,
@@ -23,19 +23,19 @@ export class OAuthClientsService {
      */
     static async verifyClient(userId: string, apiKey: string): Promise<boolean> {
         try {
-            const tables = getServerAppwriteDatabases();
+            const tables = getServerAppwriteTables();
             // Verify that the API key belongs to this user
-            const response = await tables.listDocuments(
-                DATABASE_ID,
-                API_KEYS_COLLECTION,
-                [
+            const response = await tables.listRows({
+                databaseId: DATABASE_ID,
+                tableId: API_KEYS_COLLECTION,
+                queries: [
                     Query.equal('user_id', userId),
                     Query.equal('key', apiKey),
                     Query.limit(1)
                 ]
-            );
+            });
 
-            return response.documents.length > 0;
+            return response.rows.length > 0;
         } catch (error) {
             console.error('Error verifying OAuth client:', error);
             return false;
@@ -47,18 +47,18 @@ export class OAuthClientsService {
      */
     static async getUserIdFromApiKey(apiKey: string): Promise<string | null> {
         try {
-            const tables = getServerAppwriteDatabases();
-            const response = await tables.listDocuments(
-                DATABASE_ID,
-                API_KEYS_COLLECTION,
-                [Query.equal('key', apiKey), Query.limit(1)]
-            );
+            const tables = getServerAppwriteTables();
+            const response = await tables.listRows({
+                databaseId: DATABASE_ID,
+                tableId: API_KEYS_COLLECTION,
+                queries: [Query.equal('key', apiKey), Query.limit(1)]
+            });
 
-            if (response.documents.length === 0) {
+            if (response.rows.length === 0) {
                 return null;
             }
 
-            return response.documents[0].user_id;
+            return response.rows[0].user_id;
         } catch (error) {
             console.error('Error getting user from API key:', error);
             return null;
@@ -84,12 +84,12 @@ export class OAuthCodesService {
         const code = generateAuthorizationCode();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
 
-        const tables = getServerAppwriteDatabases();
-        await tables.createDocument(
-            DATABASE_ID,
-            OAUTH_CODES_COLLECTION,
-            ID.unique(),
-            {
+        const tables = getServerAppwriteTables();
+        await tables.createRow({
+            databaseId: DATABASE_ID,
+            tableId: OAUTH_CODES_COLLECTION,
+            rowId: ID.unique(),
+            data: {
                 code,
                 client_id: clientId,
                 user_id: userId,
@@ -100,7 +100,7 @@ export class OAuthCodesService {
                 expires_at: expiresAt,
                 created_at: new Date().toISOString(),
             }
-        );
+        });
 
         return { code, expiresAt };
     }
@@ -110,27 +110,35 @@ export class OAuthCodesService {
      */
     static async consumeCode(code: string): Promise<OAuthAuthorizationCode | null> {
         try {
-            const tables = getServerAppwriteDatabases();
-            const response = await tables.listDocuments(
-                DATABASE_ID,
-                OAUTH_CODES_COLLECTION,
-                [Query.equal('code', code), Query.limit(1)]
-            );
+            const tables = getServerAppwriteTables();
+            const response = await tables.listRows({
+                databaseId: DATABASE_ID,
+                tableId: OAUTH_CODES_COLLECTION,
+                queries: [Query.equal('code', code), Query.limit(1)]
+            });
 
-            if (response.documents.length === 0) {
+            if (response.rows.length === 0) {
                 return null;
             }
 
-            const authCode = response.documents[0] as unknown as OAuthAuthorizationCode;
+            const authCode = response.rows[0] as unknown as OAuthAuthorizationCode;
 
             // Check if expired
             if (new Date(authCode.expires_at) < new Date()) {
-                await tables.deleteDocument(DATABASE_ID, OAUTH_CODES_COLLECTION, authCode.$id);
+                await tables.deleteRow({
+                    databaseId: DATABASE_ID,
+                    tableId: OAUTH_CODES_COLLECTION,
+                    rowId: authCode.$id
+                });
                 return null;
             }
 
             // Delete code (one-time use)
-            await tables.deleteDocument(DATABASE_ID, OAUTH_CODES_COLLECTION, authCode.$id);
+            await tables.deleteRow({
+                databaseId: DATABASE_ID,
+                tableId: OAUTH_CODES_COLLECTION,
+                rowId: authCode.$id
+            });
 
             return authCode;
         } catch (error) {
@@ -164,12 +172,12 @@ export class OAuthTokensService {
         const expiresIn = 3600; // 1 hour
         const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
-        const tables = getServerAppwriteDatabases();
-        await tables.createDocument(
-            DATABASE_ID,
-            OAUTH_TOKENS_COLLECTION,
-            ID.unique(),
-            {
+        const tables = getServerAppwriteTables();
+        await tables.createRow({
+            databaseId: DATABASE_ID,
+            tableId: OAUTH_TOKENS_COLLECTION,
+            rowId: ID.unique(),
+            data: {
                 client_id: clientId,
                 user_id: userId,
                 access_token: accessToken,
@@ -179,7 +187,7 @@ export class OAuthTokensService {
                 scopes,
                 created_at: new Date().toISOString(),
             }
-        );
+        });
 
         return {
             access_token: accessToken,
@@ -195,22 +203,26 @@ export class OAuthTokensService {
      */
     static async verifyToken(accessToken: string): Promise<OAuthToken | null> {
         try {
-            const tables = getServerAppwriteDatabases();
-            const response = await tables.listDocuments(
-                DATABASE_ID,
-                OAUTH_TOKENS_COLLECTION,
-                [Query.equal('access_token', accessToken), Query.limit(1)]
-            );
+            const tables = getServerAppwriteTables();
+            const response = await tables.listRows({
+                databaseId: DATABASE_ID,
+                tableId: OAUTH_TOKENS_COLLECTION,
+                queries: [Query.equal('access_token', accessToken), Query.limit(1)]
+            });
 
-            if (response.documents.length === 0) {
+            if (response.rows.length === 0) {
                 return null;
             }
 
-            const token = response.documents[0] as unknown as OAuthToken;
+            const token = response.rows[0] as unknown as OAuthToken;
 
             // Check if expired
             if (new Date(token.expires_at) < new Date()) {
-                await tables.deleteDocument(DATABASE_ID, OAUTH_TOKENS_COLLECTION, token.$id);
+                await tables.deleteRow({
+                    databaseId: DATABASE_ID,
+                    tableId: OAUTH_TOKENS_COLLECTION,
+                    rowId: token.$id
+                });
                 return null;
             }
 
@@ -232,21 +244,25 @@ export class OAuthTokensService {
         scope: string;
     } | null> {
         try {
-            const tables = getServerAppwriteDatabases();
-            const response = await tables.listDocuments(
-                DATABASE_ID,
-                OAUTH_TOKENS_COLLECTION,
-                [Query.equal('refresh_token', refreshToken), Query.limit(1)]
-            );
+            const tables = getServerAppwriteTables();
+            const response = await tables.listRows({
+                databaseId: DATABASE_ID,
+                tableId: OAUTH_TOKENS_COLLECTION,
+                queries: [Query.equal('refresh_token', refreshToken), Query.limit(1)]
+            });
 
-            if (response.documents.length === 0) {
+            if (response.rows.length === 0) {
                 return null;
             }
 
-            const oldToken = response.documents[0] as unknown as OAuthToken;
+            const oldToken = response.rows[0] as unknown as OAuthToken;
 
             // Delete old token
-            await tables.deleteDocument(DATABASE_ID, OAUTH_TOKENS_COLLECTION, oldToken.$id);
+            await tables.deleteRow({
+                databaseId: DATABASE_ID,
+                tableId: OAUTH_TOKENS_COLLECTION,
+                rowId: oldToken.$id
+            });
 
             // Create new token
             return await this.createToken(
@@ -266,28 +282,28 @@ export class OAuthTokensService {
      */
     static async revokeToken(token: string): Promise<boolean> {
         try {
-            const tables = getServerAppwriteDatabases();
-            const response = await tables.listDocuments(
-                DATABASE_ID,
-                OAUTH_TOKENS_COLLECTION,
-                [
+            const tables = getServerAppwriteTables();
+            const response = await tables.listRows({
+                databaseId: DATABASE_ID,
+                tableId: OAUTH_TOKENS_COLLECTION,
+                queries: [
                     Query.or([
                         Query.equal('access_token', token),
                         Query.equal('refresh_token', token),
                     ]),
                     Query.limit(1),
                 ]
-            );
+            });
 
-            if (response.documents.length === 0) {
+            if (response.rows.length === 0) {
                 return false;
             }
 
-            await tables.deleteDocument(
-                DATABASE_ID,
-                OAUTH_TOKENS_COLLECTION,
-                response.documents[0].$id
-            );
+            await tables.deleteRow({
+                databaseId: DATABASE_ID,
+                tableId: OAUTH_TOKENS_COLLECTION,
+                rowId: response.rows[0].$id
+            });
 
             return true;
         } catch (error) {
@@ -300,17 +316,17 @@ export class OAuthTokensService {
      * Get user tokens for a client
      */
     static async getUserClientTokens(userId: string, clientId: string): Promise<OAuthToken[]> {
-        const tables = getServerAppwriteDatabases();
-        const response = await tables.listDocuments(
-            DATABASE_ID,
-            OAUTH_TOKENS_COLLECTION,
-            [
+        const tables = getServerAppwriteTables();
+        const response = await tables.listRows({
+            databaseId: DATABASE_ID,
+            tableId: OAUTH_TOKENS_COLLECTION,
+            queries: [
                 Query.equal('user_id', userId),
                 Query.equal('client_id', clientId),
                 Query.orderDesc('$createdAt'),
             ]
-        );
+        });
 
-        return response.documents as unknown as OAuthToken[];
+        return response.rows as unknown as OAuthToken[];
     }
 }

@@ -43,11 +43,11 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       {/* Navigation */}
       <nav className={`fixed left-1/2 -translate-x-1/2 z-50 transition-all duration-500 ease-in-out ${isScrolled
-        ? "top-6 w-[95%] max-w-7xl px-0 border border-white-100 rounded-xl"
+        ? "top-6 w-[95%] max-w-7xl px-0  "
         : "top-0 w-full px-0"
         }`}>
         <div className={`transition-all duration-500 ${isScrolled
-          ? "bg-gray-950/90 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.3)] px-6 py-4"
+          ? "bg-gray-950/90 backdrop-blur-md     rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.3)] px-6 py-4 border border-[1px] border-white/80"
           : "bg-gray-900 border-b border-white/5 px-8 py-5"
           }`}>
           <div className="flex items-center justify-between">

@@ -111,14 +111,20 @@ async function handleAuthorizationCodeGrant(
     }
 
     if (authCode.redirect_uri !== redirect_uri) {
+        console.log('[OAuth Token] Redirect URI mismatch:', {
+            expected: authCode.redirect_uri,
+            received: redirect_uri
+        });
         return NextResponse.json(
             { error: 'invalid_grant', error_description: 'Redirect URI mismatch' },
             { status: 400 }
         );
     }
 
+    console.log('[OAuth Token] Checking PKCE...');
     if (authCode.code_challenge) {
         if (!code_verifier) {
+            console.log('[OAuth Token] PKCE: code_verifier required but not provided');
             return NextResponse.json(
                 { error: 'invalid_request', error_description: 'code_verifier required' },
                 { status: 400 }
@@ -132,21 +138,41 @@ async function handleAuthorizationCodeGrant(
         );
 
         if (!isValidPKCE) {
+            console.log('[OAuth Token] PKCE verification failed');
             return NextResponse.json(
                 { error: 'invalid_grant', error_description: 'Invalid code_verifier' },
                 { status: 400 }
             );
         }
+        console.log('[OAuth Token] PKCE verified successfully');
+    } else {
+        console.log('[OAuth Token] No PKCE challenge, skipping verification');
     }
 
-    const tokenResponse = await OAuthTokensService.createToken(
-        authCode.client_id,
-        authCode.user_id,
-        authCode.scopes,
-        true
-    );
+    console.log('[OAuth Token] Creating access token...', {
+        client_id: authCode.client_id,
+        user_id: authCode.user_id,
+        scopes: authCode.scopes
+    });
 
-    return NextResponse.json(tokenResponse);
+    try {
+        const tokenResponse = await OAuthTokensService.createToken(
+            authCode.client_id,
+            authCode.user_id,
+            authCode.scopes,
+            true
+        );
+
+        console.log('[OAuth Token] Token created successfully');
+        return NextResponse.json(tokenResponse);
+    } catch (tokenError) {
+        console.error('[OAuth Token] Failed to create token:', tokenError);
+        console.error('[OAuth Token] Token error stack:', (tokenError as Error).stack);
+        return NextResponse.json(
+            { error: 'server_error', error_description: 'Failed to create access token: ' + (tokenError as Error).message },
+            { status: 500 }
+        );
+    }
 }
 
 async function handleRefreshTokenGrant(

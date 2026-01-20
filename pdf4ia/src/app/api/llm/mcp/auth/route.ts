@@ -23,15 +23,14 @@ export async function GET(request: NextRequest) {
 
         // Check if user is authenticated
         let userId: string;
-        let userEmail: string;
         try {
             const account = await getAppwriteAccount();
             const user = await account.get();
             userId = user.$id;
-            userEmail = user.email;
         } catch {
             // Redirect to login with return URL
-            const loginUrl = new URL('/login', request.url);
+            const baseUrl = process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+            const loginUrl = new URL('/login', baseUrl);
             loginUrl.searchParams.set('redirect', request.url);
             return NextResponse.redirect(loginUrl);
         }

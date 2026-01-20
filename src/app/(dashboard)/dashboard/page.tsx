@@ -27,7 +27,7 @@ interface RecentDocument {
 }
 
 export default function DashboardPage() {
-    const { t } = useI18n();
+    const { t, locale } = useI18n();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [activityData, setActivityData] = useState<ActivityData[]>([]);
     const [recentDocuments, setRecentDocuments] = useState<RecentDocument[]>([]);
@@ -64,7 +64,7 @@ export default function DashboardPage() {
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
-        return date.toLocaleDateString();
+        return date.toLocaleDateString(locale === 'es' ? 'es-ES' : 'en-US');
     };
 
 
@@ -199,7 +199,7 @@ export default function DashboardPage() {
                                     dataKey="date"
                                     tickFormatter={(value) => {
                                         const date = new Date(value);
-                                        return date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
+                                        return date.toLocaleDateString(locale === 'es' ? 'es-ES' : 'en-US', { month: 'short', day: 'numeric' });
                                     }}
                                     stroke="#6b7280"
                                     fontSize={12}
@@ -217,7 +217,7 @@ export default function DashboardPage() {
                                     }}
                                     labelFormatter={(value) => {
                                         const date = new Date(value);
-                                        return date.toLocaleDateString('es-ES', {
+                                        return date.toLocaleDateString(locale === 'es' ? 'es-ES' : 'en-US', {
                                             weekday: 'short',
                                             month: 'short',
                                             day: 'numeric'

@@ -202,7 +202,7 @@ export default function DocumentsPage() {
                         {filteredDocuments.map((doc) => (
                             <div
                                 key={doc.$id}
-                                className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all flex items-center justify-between group"
+                                className="bg-white rounded-xl shadow-md border border-gray-200 p-4 hover:shadow-md hover:border-gray-900 transition-all flex flex-col md:flex-row md:items-center justify-between group"
                             >
                                 <div className="flex items-center gap-4 min-w-0 flex-1">
                                     <div className="p-3 bg-gray-50 text-gray-900 rounded-lg group-hover:bg-gray-900 group-hover:text-white transition-colors">
@@ -229,7 +229,7 @@ export default function DocumentsPage() {
                                                 </span>
                                             )}
                                             <span
-                                                className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase cursor-help ${doc.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                                className={`text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase cursor-help ${doc.status === 'completed' ? 'bg-green-100 text-green-700' :
                                                     doc.status === 'failed' ? 'bg-red-100 text-red-700 border' : 'bg-amber-100 border text-amber-700'
                                                     }`}
                                                 title={doc.status === 'failed' && doc.error_message ? doc.error_message : undefined}
@@ -244,7 +244,7 @@ export default function DocumentsPage() {
                                     <button
                                         onClick={() => handleDownload(doc)}
                                         disabled={doc.status !== 'completed'}
-                                        className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                        className="p-2 text-gray-600 border hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                                         title={t("Download")}
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -253,7 +253,7 @@ export default function DocumentsPage() {
                                     </button>
                                     <button
                                         onClick={() => confirmDelete(doc.$id)}
-                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all transform hover:scale-110 active:scale-95"
+                                        className="p-2 text-gray-400 border hover:text-red-600 hover:bg-red-50 rounded-lg transition-all transform hover:scale-110 active:scale-95"
                                         title={t("Delete")}
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

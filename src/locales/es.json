@@ -237,5 +237,12 @@
     "Connected Tool": "Herramienta Conectada",
     "AI Prompt Example": "Hola, ¿puedes generarme una factura proforma para el cliente 'Acme Corp' con un total de $1,500?",
     "AI Response Example": "¡Claro! He utilizado PDFGenAI para generar tu factura. Aquí tienes el enlace de descarga:",
-    "Ask AI...": "Pídele a tu IA que genere un PDF..."
+    "Ask AI...": "Pídele a tu IA que genere un PDF...",
+    "Document Generation Activity": "Actividad de Generación de Documentos",
+    "days": "días",
+    "Recent Documents": "Documentos Recientes",
+    "completed": "Completado",
+    "failed": "Error",
+    "processing": "Procesando",
+    "pending": "Pendiente"
 }

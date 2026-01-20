@@ -115,7 +115,7 @@ function getOrCreateServer() {
 
     // Tool: list_templates
     server.tool(
-        "list_templates",
+        "list_pdf_templates",
         {},
         async (_, extra) => {
             const request = (extra as { request?: NextRequest }).request;

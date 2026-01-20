@@ -70,13 +70,39 @@ export default function DashboardPage() {
 
     if (loading) {
         return (
-            <div className="px-4 py-6 sm:px-6 lg:px-8">
-                <div className="animate-pulse">
-                    <div className="h-8 bg-gray-200 rounded w-48 mb-8"></div>
-                    <div className="grid gap-6 md:grid-cols-3 mb-8">
-                        <div className="h-32 bg-gray-200 rounded"></div>
-                        <div className="h-32 bg-gray-200 rounded"></div>
-                        <div className="h-32 bg-gray-200 rounded"></div>
+            <div className="px-4 py-6 sm:px-6 lg:px-8 animate-pulse">
+                {/* Header Skeleton */}
+                <div className="mb-8">
+                    <div className="h-10 bg-gray-200 rounded-lg w-48 mb-3"></div>
+                    <div className="h-5 bg-gray-100 rounded-md w-96"></div>
+                </div>
+
+                {/* Statistics Tiles Skeletons */}
+                <div className="grid gap-6 md:grid-cols-3 mb-8">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-32 bg-gray-200 rounded-xl border-2 border-gray-100"></div>
+                    ))}
+                </div>
+
+                {/* Activity Chart Skeleton */}
+                <div className="mb-8 bg-white p-8 border-y border-gray-200">
+                    <div className="h-7 bg-gray-200 rounded-lg w-64 mb-6"></div>
+                    <div className="h-80 bg-gray-100 rounded-xl w-full"></div>
+                </div>
+
+                {/* Recent Documents Skeleton */}
+                <div>
+                    <div className="h-8 bg-gray-200 rounded-lg w-56 mb-5"></div>
+                    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                        {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="p-5 border-b border-gray-100 flex justify-between items-center">
+                                <div className="space-y-2">
+                                    <div className="h-4 bg-gray-200 rounded w-48"></div>
+                                    <div className="h-3 bg-gray-100 rounded w-32"></div>
+                                </div>
+                                <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>

@@ -14,7 +14,8 @@ export class PDFGenerator {
         this.browser = null;
       }
 
-      const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      const executablePath = await this.findChromium();
+      console.log(`[PDFGenerator] launching browser with executablePath: ${executablePath || "default"}`);
 
       this.browser = await puppeteer.launch({
         headless: true,
@@ -26,14 +27,77 @@ export class PDFGenerator {
           "--disable-accelerated-2d-canvas",
           "--no-first-run",
           "--no-zygote",
-          "--single-process", // <- Essential for some serverless/container envs
+          "--single-process", // <- Essential for Appwrite / Containers
           "--disable-gpu",
-          "--font-render-hinting=none", // Better font rendering consistency
+          "--font-render-hinting=none",
           "--disable-extensions",
+          "--disable-web-security",
         ],
       });
     }
     return this.browser;
+  }
+
+  /**
+   * Tries several common locations to find the chrome executable in production
+   */
+  private static async findChromium(): Promise<string | null> {
+    const { existsSync, lstatSync, readdirSync } = await import("fs");
+    const { join } = await import("path");
+
+    const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    if (envPath && existsSync(envPath)) return envPath;
+
+    // Search in the local project cache first (where postinstall puts it)
+    const localCachePath = join(process.cwd(), ".cache", "puppeteer");
+    const searchPaths = [
+      localCachePath,
+      "/usr/local/build/.cache/puppeteer", // Path seen in the logs
+      join(process.cwd(), "node_modules", "puppeteer", ".local-chromium"),
+      "/usr/bin/google-chrome",
+      "/usr/bin/google-chrome-stable",
+      "/usr/bin/chromium",
+      "/usr/bin/chromium-browser",
+    ];
+
+    console.log(`[PDFGenerator] Searching for Chromium in ${searchPaths.length} locations. cwd: ${process.cwd()}`);
+
+    for (const basePath of searchPaths) {
+      if (!existsSync(basePath)) continue;
+
+      try {
+        if (lstatSync(basePath).isFile()) return basePath;
+
+        // Recursively find the actual binary inside directories (Puppeteer cache structure)
+        const findBinary = (dir: string): string | null => {
+          try {
+            const files = readdirSync(dir);
+            for (const file of files) {
+              const fullPath = join(dir, file);
+              const stat = lstatSync(fullPath);
+              if (file === "chrome" || file === "chromium") {
+                if (stat.isFile()) return fullPath;
+              }
+              if (stat.isDirectory()) {
+                const found = findBinary(fullPath);
+                if (found) return found;
+              }
+            }
+          } catch { /* ignore */ }
+          return null;
+        };
+
+        const found = findBinary(basePath);
+        if (found) {
+          console.log(`[PDFGenerator] Found binary at: ${found}`);
+          return found;
+        }
+      } catch (e) {
+        console.warn(`[PDFGenerator] Error searching in ${basePath}:`, e);
+      }
+    }
+
+    return null;
   }
 
   static async generatePDF(
@@ -68,7 +132,21 @@ export class PDFGenerator {
       // Create full HTML with CSS (compact to avoid whitespace issues)
       const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${html}</body></html>`;
 
-      await page.setContent(fullHtml, { waitUntil: "networkidle0" });
+      // Emulate print media to apply @media print styles
+      await page.emulateMediaType("print");
+
+      // Use networkidle2 to allow external assets (JS/Fonts/CSS) to load
+      await page.setContent(fullHtml, {
+        waitUntil: ["load", "domcontentloaded", "networkidle2"],
+        timeout: 45000
+      });
+
+      // Wait for fonts to be specifically ready
+      try {
+        await page.evaluateHandle("document.fonts.ready");
+      } catch {
+        console.warn("[PDFGenerator] Timeout waiting for fonts, proceeding anyway.");
+      }
 
       const pdfBuffer = await page.pdf({
         format: (options?.paperSize || "A4") as PaperFormat,
@@ -90,9 +168,16 @@ export class PDFGenerator {
         try { await page.close(); } catch { /* ignore */ }
       }
 
-      // If connection closed and we haven't retried yet, try one more time
-      if ((error instanceof Error && error.message.includes("Connection closed")) && retryCount < 1) {
-        console.warn("Puppeteer connection closed, retrying PDF generation...");
+      // If connection closed or frame detached, and we haven't retried yet, try one more time
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const shouldRetry = (
+        errorMessage.includes("Connection closed") ||
+        errorMessage.includes("Navigating frame was detached") ||
+        errorMessage.includes("Target closed")
+      ) && retryCount < 2;
+
+      if (shouldRetry) {
+        console.warn(`Puppeteer error: ${errorMessage}. Retrying PDF generation (${retryCount + 1})...`);
         this.browser = null; // Force relaunch
         return this.generatePDF(templateHtml, css, data, options, retryCount + 1);
       }

@@ -302,7 +302,7 @@ export async function POST(request: NextRequest) {
                 // Connect with custom context
                 server.connect(transport as any).then(() => {
                     (transport as any).onmessage?.(message, { request });
-                }).catch(err => {
+                }).catch((err: any) => {
                     clearTimeout(timeout);
                     resolve({ jsonrpc: "2.0", id: message.id || null, error: { code: -32603, message: err.message } });
                 });

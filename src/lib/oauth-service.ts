@@ -16,18 +16,21 @@ export const OAUTH_CODES_COLLECTION = process.env.OAUTH_CODES_COLLECTION_ID || '
  * OAuth Clients Service
  * Uses Appwrite User ID as client_id and API Key as client_secret
  */
+// In-memory cache for API Key -> User ID lookups to improve performance
+const apiKeyCache = new Map<string, { userId: string, expires: number }>();
+const CACHE_TTL = 1000 * 60 * 10; // 10 minutes
+
 export class OAuthClientsService {
     /**
-     * Verify client credentials using User ID and API Key
+     * Verify client credentials
      */
-    static async verifyClient(userId: string, apiKey: string): Promise<boolean> {
+    static async verifyClient(clientId: string, clientSecret: string): Promise<boolean> {
         try {
             const users = getServerAppwriteUsers();
-            const user = await users.get(userId);
+            const user = await users.get(clientId);
 
-            // Check if the provided API key matches the one in user prefs
-            // User confirmed the API key is stored in the user object
-            return user.prefs?.apikey === apiKey;
+            // In our system, the clientSecret is the user's apikey stored in preferences
+            return user.prefs?.apikey === clientSecret;
         } catch (error) {
             console.error('Error verifying OAuth client:', error);
             return false;
@@ -36,21 +39,36 @@ export class OAuthClientsService {
 
     /**
      * Get user ID from API key
-     * Note: This is more expensive now as we have to list users.
-     * Only use if necessary. In standard OAuth, we have the client_id (userId).
+     * Optimization: Uses an in-memory cache to avoid expensive user listings.
      */
     static async getUserIdFromApiKey(apiKey: string): Promise<string | null> {
+        // 1. Check cache first
+        const cached = apiKeyCache.get(apiKey);
+        if (cached && cached.expires > Date.now()) {
+            return cached.userId;
+        }
+
         try {
             const users = getServerAppwriteUsers();
             // Appwrite doesn't support searching prefs directly via users.list.
             // We list the most recent users and find the one with the matching key.
             const response = await users.list([
-                Query.orderDesc('$createdAt'),
-                Query.limit(100)
+                Query.limit(100),
+                Query.orderDesc('$createdAt')
             ]);
 
             const user = response.users.find(u => u.prefs?.apikey === apiKey);
-            return user?.$id || null;
+
+            if (user) {
+                // Update cache
+                apiKeyCache.set(apiKey, {
+                    userId: user.$id,
+                    expires: Date.now() + CACHE_TTL
+                });
+                return user.$id;
+            }
+
+            return null;
         } catch (error) {
             console.error('Error finding user from API key:', error);
             return null;

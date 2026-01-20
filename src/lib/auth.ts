@@ -38,7 +38,7 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthUse
                     isApiKey: true
                 };
             }
-        } catch (error) {
+        } catch (_error) {
             // Not a local JWT or expired, try OAuth Service
             try {
                 const oauthToken = await OAuthTokensService.verifyToken(token);
@@ -177,50 +177,52 @@ export async function getAuthenticatedStorage(request: NextRequest) {
  * Supports both local API keys and OAuth access tokens
  */
 export async function validateHybridToken(authHeader: string | null): Promise<boolean> {
+    const start = Date.now();
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return false;
     }
 
     const token = authHeader.substring(7);
 
-    // 1. Check if it's a local API key (simple env variable for Claude Code)
+    // 1. Check if it's a local API key (Fastest)
     const localApiKey = process.env.MCP_API_KEY;
     if (localApiKey && token === localApiKey) {
-        console.log('[HYBRID_AUTH] Validated via local API key');
+        console.log(`[HYBRID_AUTH] Validated via local API key in ${Date.now() - start}ms`);
         return true;
     }
 
-    // 2. Try to verify as JWT (API key from database)
+    // 2. Try to verify as JWT (Fast - Local)
     try {
         const secret = encoder.encode(JWT_SECRET);
         const { payload } = await jwtVerify(token, secret);
         if (payload && payload.userId) {
-            console.log('[HYBRID_AUTH] Validated via JWT API key');
+            console.log(`[HYBRID_AUTH] Validated via JWT API key in ${Date.now() - start}ms`);
             return true;
         }
     } catch {
-        // Not a JWT, continue to OAuth check
+        // Not a JWT, continue
     }
 
-    // 3. Try to verify as OAuth token or Direct API Key
+    // 3. Try to verify as OAuth token or Direct API Key (Slower - DB/User API)
     try {
+        const dbStart = Date.now();
         // First try standard OAuth token lookup
         const oauthToken = await OAuthTokensService.verifyToken(token);
         if (oauthToken) {
-            console.log('[HYBRID_AUTH] Validated via OAuth token');
+            console.log(`[HYBRID_AUTH] Validated via OAuth token in ${Date.now() - start}ms (DB: ${Date.now() - dbStart}ms)`);
             return true;
         }
 
-        // Then try direct API key lookup (new hybrid requirement)
+        // Then try direct API key lookup (User Preferences)
         const userId = await OAuthClientsService.getUserIdFromApiKey(token);
         if (userId) {
-            console.log('[HYBRID_AUTH] Validated via Direct API key (User Prefs)');
+            console.log(`[HYBRID_AUTH] Validated via Direct API key (User Prefs) in ${Date.now() - start}ms (UserAPI: ${Date.now() - dbStart}ms)`);
             return true;
         }
-    } catch (error) {
-        console.error('[HYBRID_AUTH] Token/Key verification failed:', error);
+    } catch (_error) {
+        console.error('[HYBRID_AUTH] Token/Key verification failed:', _error);
     }
 
-    console.warn('[HYBRID_AUTH] Token validation failed');
+    console.warn(`[HYBRID_AUTH] Token validation failed after ${Date.now() - start}ms`);
     return false;
 }

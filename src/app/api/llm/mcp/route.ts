@@ -169,64 +169,65 @@ export async function GET(request: NextRequest) {
     const start = Date.now();
     debugLog('SSE handshake attempt starting');
 
-    // Log headers
-    const reqHeaders: Record<string, string> = {};
-    request.headers.forEach((v, k) => { reqHeaders[k] = v; });
-    debugLog('Incoming SSE Headers:', reqHeaders);
+    // 1. Auth Check (Wait for it, it's fast)
+    const authHeader = request.headers.get("Authorization");
+    const isValid = await validateHybridToken(authHeader);
 
+    if (!isValid) {
+        console.warn('[MCP] Unauthorized SSE attempt');
+        return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    // 2. Setup Stream
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
 
+    // 3. Create Transport to get Session ID
+    const resMock = {
+        statusCode: 200,
+        setHeader: () => resMock,
+        getHeader: () => undefined,
+        removeHeader: () => resMock,
+        writeHead: () => resMock,
+        write: (chunk: any) => {
+            const data = typeof chunk === 'string' ? encoder.encode(chunk) : chunk;
+            writer.write(data).catch(() => { });
+            return true;
+        },
+        end: (chunk?: any) => {
+            if (chunk) {
+                const data = typeof chunk === 'string' ? encoder.encode(chunk) : chunk;
+                writer.write(data).catch(() => { });
+            }
+            return resMock;
+        },
+        on: () => resMock,
+        once: () => resMock,
+        emit: () => true,
+        removeListener: () => resMock,
+        addListener: () => resMock,
+    };
+
+    const transport = new SSEServerTransport('/api/llm/mcp', resMock as any);
+    const sessionId = (transport as any).sessionId;
+
+    if (!sessionId) {
+        return new NextResponse("Failed to generate session", { status: 500 });
+    }
+
+    // Persist and setup background tasks
+    transports.set(sessionId, transport);
+    (transport as any).request = request;
+
     (async () => {
         try {
-            const authHeader = request.headers.get("Authorization");
-            const isValid = await validateHybridToken(authHeader);
-
-            if (!isValid) {
-                console.warn('[MCP] Unauthorized SSE attempt');
-                await writer.write(encoder.encode('event: error\ndata: Unauthorized\n\n'));
-                await writer.close();
-                return;
-            }
-
             const server = getOrCreateServer();
-            const resMock = {
-                statusCode: 200,
-                setHeader: () => resMock,
-                getHeader: () => undefined,
-                removeHeader: () => resMock,
-                writeHead: () => resMock,
-                write: (chunk: any) => {
-                    const data = typeof chunk === 'string' ? encoder.encode(chunk) : chunk;
-                    writer.write(data).catch(() => { });
-                    return true;
-                },
-                end: (chunk?: any) => {
-                    if (chunk) {
-                        const data = typeof chunk === 'string' ? encoder.encode(chunk) : chunk;
-                        writer.write(data).catch(() => { });
-                    }
-                    return resMock;
-                },
-                on: () => resMock,
-                once: () => resMock,
-                emit: () => true,
-                removeListener: () => resMock,
-                addListener: () => resMock,
-            };
-
-            const transport = new SSEServerTransport('/api/llm/mcp', resMock as any);
-            const sessionId = (transport as any).sessionId;
-            if (!sessionId) throw new Error("Failed to generate sessionId");
-
-            transports.set(sessionId, transport);
-            (transport as any).request = request;
-
             await server.connect(transport);
-            console.log(`[MCP] SSE session ${sessionId} connected in ${Date.now() - start}ms`);
 
-            // Initial flush & heartbeat
+            // Initial flush
             await writer.write(encoder.encode(': mcp-initial-flush\n\n'));
+
+            // Heartbeat
             const keepAlive = setInterval(() => {
                 writer.write(encoder.encode(': heartbeat\n\n')).catch(() => clearInterval(keepAlive));
             }, 15000);
@@ -238,11 +239,12 @@ export async function GET(request: NextRequest) {
             });
 
         } catch (error) {
-            console.error('[MCP] SSE Handshake Error:', error);
+            console.error('[MCP] SSE Stream Error:', error);
             try { await writer.close(); } catch { }
         }
     })();
 
+    // 4. Return Response WITH required header
     return new Response(readable, {
         headers: {
             'Content-Type': 'text/event-stream',
@@ -250,6 +252,8 @@ export async function GET(request: NextRequest) {
             'Connection': 'keep-alive',
             'X-Accel-Buffering': 'no',
             'Access-Control-Allow-Origin': '*',
+            'mcp-session-id': sessionId,
+            'X-MCP-Session-Id': sessionId, // Some clients use this variant
         },
     });
 }
@@ -299,7 +303,6 @@ export async function POST(request: NextRequest) {
                     start: async () => { }
                 };
 
-                // Connect with custom context
                 server.connect(transport as any).then(() => {
                     (transport as any).onmessage?.(message, { request });
                 }).catch((err: any) => {
@@ -321,8 +324,6 @@ export async function POST(request: NextRequest) {
         }
 
         (transport as any).request = request;
-
-        // Feed the message to the transport's onmessage handler (which the server connected to)
         if ((transport as any).onmessage) {
             await (transport as any).onmessage(message, { request });
         }

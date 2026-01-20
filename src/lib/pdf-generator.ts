@@ -13,8 +13,12 @@ export class PDFGenerator {
         try { await this.browser.close(); } catch { /* ignore */ }
         this.browser = null;
       }
+
+      const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+
       this.browser = await puppeteer.launch({
         headless: true,
+        executablePath: executablePath || undefined,
         args: [
           "--no-sandbox",
           "--disable-setuid-sandbox",
@@ -22,8 +26,10 @@ export class PDFGenerator {
           "--disable-accelerated-2d-canvas",
           "--no-first-run",
           "--no-zygote",
-          "--single-process",
+          "--single-process", // <- Essential for some serverless/container envs
           "--disable-gpu",
+          "--font-render-hinting=none", // Better font rendering consistency
+          "--disable-extensions",
         ],
       });
     }

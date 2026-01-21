@@ -211,6 +211,57 @@ export default async ({ req, res, log, error }) => {
         let pdfBuffer;
 
         try {
+            // SECURITY: Enable Request Interception to block SSRF
+            await page.setRequestInterception(true);
+            page.on('request', request => {
+                const url = request.url();
+
+                if (url.startsWith('data:') || url === 'about:blank') {
+                    request.continue();
+                    return;
+                }
+
+                if (url.startsWith('file:')) {
+                    request.abort('accessdenied');
+                    return;
+                }
+
+                try {
+                    const parsed = new URL(url);
+                    const hostname = parsed.hostname;
+
+                    if (
+                        hostname === 'localhost' ||
+                        hostname === '::1' ||
+                        hostname === '0.0.0.0' ||
+                        hostname.startsWith('127.') ||
+                        hostname.startsWith('10.') ||
+                        hostname.startsWith('192.168.') ||
+                        hostname.startsWith('169.254.')
+                    ) {
+                        log(`Blocked SSRF attempt to: ${url}`);
+                        request.abort('accessdenied');
+                        return;
+                    }
+
+                    if (hostname.startsWith('172.')) {
+                        const parts = hostname.split('.');
+                        if (parts.length === 4) {
+                            const second = parseInt(parts[1], 10);
+                            if (second >= 16 && second <= 31) {
+                                log(`Blocked SSRF attempt to: ${url}`);
+                                request.abort('accessdenied');
+                                return;
+                            }
+                        }
+                    }
+
+                    request.continue();
+                } catch {
+                    request.abort();
+                }
+            });
+
             await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
 
             pdfBuffer = await page.pdf({

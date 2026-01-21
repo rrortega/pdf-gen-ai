@@ -111,6 +111,67 @@ export class PDFGenerator {
 
       await page.emulateMediaType("print");
 
+      // SECURITY: Enable Request Interception to block SSRF (Private IPs, etc.)
+      page.on('request', request => {
+        const url = request.url();
+
+        // Allow data URIs (images fonts etc embedded)
+        if (url.startsWith('data:')) {
+          request.continue();
+          return;
+        }
+
+        // Block file:// protocol (local file access)
+        if (url.startsWith('file:')) {
+          request.abort('accessdenied');
+          return;
+        }
+
+        // Allow main document content (it's set via setContent, so url is usually about:blank or data:)
+        if (url === 'about:blank') {
+          request.continue();
+          return;
+        }
+
+        try {
+          const parsed = new URL(url);
+          const hostname = parsed.hostname;
+
+          // Block Localhost / Private IPs
+          if (
+            hostname === 'localhost' ||
+            hostname === '::1' ||
+            hostname === '0.0.0.0' ||
+            hostname.startsWith('127.') ||
+            hostname.startsWith('10.') ||
+            hostname.startsWith('192.168.') ||
+            hostname.startsWith('169.254.')
+          ) {
+            console.warn(`[PDFGenerator] Blocked SSRF attempt to: ${url}`);
+            request.abort('accessdenied');
+            return;
+          }
+
+          // Optional: Block 172.16.x.x - 172.31.x.x (Class B Private)
+          if (hostname.startsWith('172.')) {
+            const parts = hostname.split('.');
+            if (parts.length === 4) {
+              const second = parseInt(parts[1], 10);
+              if (second >= 16 && second <= 31) {
+                console.warn(`[PDFGenerator] Blocked SSRF attempt to: ${url}`);
+                request.abort('accessdenied');
+                return;
+              }
+            }
+          }
+
+          request.continue();
+        } catch {
+          // Invalid URL, abort
+          request.abort();
+        }
+      });
+
       await page.setContent(fullHtml, {
         waitUntil: ["load", "domcontentloaded", "networkidle2"],
         timeout: 45000

@@ -7,6 +7,7 @@ import { PDFGenerator } from "@/lib/pdf-generator";
 import { ID, Permission, Role } from "node-appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
 import { SignJWT } from "jose";
+import { validateWebhookUrl } from "@/lib/security";
 
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-me";
 const encoder = new TextEncoder();
@@ -24,6 +25,10 @@ export async function POST(request: NextRequest) {
 
         const { tables, user } = auth;
         const { template_id, name, data: inputData, webhook_callback } = await request.json();
+
+        if (webhook_callback && !validateWebhookUrl(webhook_callback)) {
+            return NextResponse.json({ error: "Invalid webhook_callback URL" }, { status: 400 });
+        }
 
         if (!template_id || !name) {
             return NextResponse.json(

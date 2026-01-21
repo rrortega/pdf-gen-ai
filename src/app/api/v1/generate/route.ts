@@ -73,7 +73,8 @@ export async function POST(request: NextRequest) {
                     data: encodedData,
                     status: "queued",
                     size: 0,
-                    downloads: 0
+                    downloads: 0,
+                    webhook_callback: webhook_callback || null
                 },
                 permissions: [
                     Permission.read(Role.user(user.id)),
@@ -170,7 +171,8 @@ export async function POST(request: NextRequest) {
                     data: encodedData,
                     status: "queued",
                     size: 0,
-                    downloads: 0
+                    downloads: 0,
+                    webhook_callback: webhook_callback || null
                 },
                 permissions: [
                     Permission.read(Role.user(user.id)),

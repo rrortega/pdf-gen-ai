@@ -105,6 +105,25 @@ function registerHbsHelpers() {
 // Global browser instance for reuse
 let browser = null;
 
+const sendWebhook = async (url, payload, log, error) => {
+    if (!url) return;
+    try {
+        log(`Sending webhook to: ${url}`);
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            error(`Webhook failed with status: ${response.status}`);
+        } else {
+            log('Webhook sent successfully.');
+        }
+    } catch (err) {
+        error(`Failed to send webhook: ${err.message}`);
+    }
+};
+
 export default async ({ req, res, log, error }) => {
     // 0. Environment Check
     const API_KEY = process.env.APPWRITE_API_KEY;
@@ -115,6 +134,9 @@ export default async ({ req, res, log, error }) => {
     const DOCUMENTS_ID = process.env.NEXT_PUBLIC_APPWRITE_DOCUMENTS_COLLECTION_ID || "documents";
     const PDF_BUCKET_ID = "pdfs";
     const JWT_SECRET = process.env.JWT_SECRET;
+
+    // Domain for download URL (optional, fallback to APP_URL or request host if possible, but env is best)
+    const APP_DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL || "https://pdfgen.ai";
 
     // Default to Alpine Linux chromium path if not specified
     const CHROMIUM_PATH = process.env.CHROMIUM_PATH || "/usr/bin/chromium-browser";
@@ -151,6 +173,8 @@ export default async ({ req, res, log, error }) => {
         const encodedData = payload.data;
         const userId = payload.user_id;
         const name = payload.name;
+        // Get webhook callback URL from payload
+        const webhookCallback = payload.webhook_callback;
 
         // ONLY process if status is 'queued'
         if (status !== 'queued') {
@@ -305,6 +329,7 @@ export default async ({ req, res, log, error }) => {
             .sign(secret);
 
         // 8. Update Document
+        const sizeInKb = Math.round(pdfBuffer.length / 1024);
         await db.updateDocument(
             DATABASE_ID,
             DOCUMENTS_ID,
@@ -312,17 +337,30 @@ export default async ({ req, res, log, error }) => {
             {
                 status: 'completed',
                 pdf_file: fileId,
-                size: Math.round(pdfBuffer.length / 1024),
+                size: sizeInKb,
                 signature: signature
             }
         );
         log(`Document ${documentId} updated to 'completed'.`);
 
+        // 9. Send Webhook (Success)
+        if (webhookCallback) {
+            const downloadUrl = `${APP_DOMAIN}/api/v1/documents/${documentId}/download?signature=${signature}`;
+            await sendWebhook(webhookCallback, {
+                success: true,
+                documentId: documentId,
+                status: "completed",
+                pdfUrl: downloadUrl,
+                name: name,
+                size: sizeInKb
+            }, log, error);
+        }
+
         return res.json({
             success: true,
             documentId: documentId,
             fileId: fileId,
-            size: Math.round(pdfBuffer.length / 1024)
+            size: sizeInKb
         });
 
     } catch (err) {
@@ -340,8 +378,26 @@ export default async ({ req, res, log, error }) => {
                         error_message: err.message
                     }
                 );
+
+                // 10. Send Webhook (Failure)
+                // Re-extract webhook callback from payload just in case we are in this block
+                let payload = req.body;
+                if (typeof payload === 'string') {
+                    try { payload = JSON.parse(payload); } catch (e) { }
+                }
+                const webhookCallback = payload?.webhook_callback;
+
+                if (webhookCallback) {
+                    await sendWebhook(webhookCallback, {
+                        success: false,
+                        documentId: req.body.$id,
+                        status: "failed",
+                        error: err.message
+                    }, log, error);
+                }
+
             } catch (updateErr) {
-                error(`Failed to update status to failed: ${updateErr.message}`);
+                error(`Failed to update status/webhook for failure: ${updateErr.message}`);
             }
         }
 

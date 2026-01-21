@@ -55,7 +55,13 @@ export class PDFGenerator {
       }
 
       this.browser = (await puppeteer.launch({
-        args: isProd ? chromium.args : [
+        args: isProd ? [
+          ...chromium.args,
+          "--disable-gpu",
+          "--disable-dev-shm-usage",
+          "--disable-setuid-sandbox",
+          "--no-sandbox",
+        ] : [
           "--no-sandbox",
           "--disable-setuid-sandbox"
         ],
@@ -144,7 +150,16 @@ export class PDFGenerator {
 
       if (shouldRetry) {
         console.warn(`Puppeteer error: ${errorMessage}. Retrying PDF generation (${retryCount + 1})...`);
-        this.browser = null;
+
+        // Force close the browser instance to free up resources/memory immediately
+        if (this.browser) {
+          try { await this.browser.close(); } catch { /* ignore */ }
+          this.browser = null;
+        }
+
+        // Wait a bit before retrying to let the system stabilize
+        await new Promise(r => setTimeout(r, 500));
+
         return this.generatePDF(templateHtml, css, data, options, retryCount + 1);
       }
 

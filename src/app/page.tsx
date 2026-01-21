@@ -14,6 +14,7 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isAsync, setIsAsync] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const domain = process.env.NEXT_PUBLIC_DOMAIN || "https://pdfgen.ai";
 
   useEffect(() => {
@@ -95,40 +96,56 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-4">
-              {/* Language Switcher */}
-              <button
-                onClick={() => setLocale(locale === 'en' ? 'es' : 'en')}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors border border-white/5"
-              >
-                <span className="text-xs font-bold text-gray-400 uppercase">{locale}</span>
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 11.37 9.188 16.225 5 19.168" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
-              </button>
+              {/* Language Switcher - Desktop Only */}
+              <div className="hidden md:block">
+                <button
+                  onClick={() => setLocale(locale === 'en' ? 'es' : 'en')}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors border border-white/5"
+                >
+                  <span className="text-xs font-bold text-gray-400 uppercase">{locale}</span>
+                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 11.37 9.188 16.225 5 19.168" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
+                </button>
+              </div>
 
               <div className="h-6 w-px bg-white/10 mx-2 hidden md:block"></div>
 
-              {isAuthenticated ? (
-                <Link
-                  href="/dashboard"
-                  className="px-6 py-2.5 bg-white text-gray-900 rounded-xl hover:bg-gray-100 transition-all font-bold text-sm shadow-lg hover:scale-105 active:scale-95"
-                >
-                  {t("Dashboard")}
-                </Link>
-              ) : (
-                <>
+              {/* Auth Buttons - Desktop Only */}
+              <div className="hidden md:flex items-center gap-4">
+                {isAuthenticated ? (
                   <Link
-                    href="/login"
-                    className="px-6 py-2.5 text-gray-300 hover:text-white transition-colors font-semibold text-sm"
-                  >
-                    {t("Sign In")}
-                  </Link>
-                  <Link
-                    href="/register"
+                    href="/dashboard"
                     className="px-6 py-2.5 bg-white text-gray-900 rounded-xl hover:bg-gray-100 transition-all font-bold text-sm shadow-lg hover:scale-105 active:scale-95"
                   >
-                    {t("Get Started")}
+                    {t("Dashboard")}
                   </Link>
-                </>
-              )}
+                ) : (
+                  <>
+                    <Link
+                      href="/login"
+                      className="px-6 py-2.5 text-gray-300 hover:text-white transition-colors font-semibold text-sm"
+                    >
+                      {t("Sign In")}
+                    </Link>
+                    <Link
+                      href="/register"
+                      className="px-6 py-2.5 bg-white text-gray-900 rounded-xl hover:bg-gray-100 transition-all font-bold text-sm shadow-lg hover:scale-105 active:scale-95"
+                    >
+                      {t("Get Started")}
+                    </Link>
+                  </>
+                )}
+              </div>
+
+              {/* Hamburger Button - Mobile Only */}
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="md:hidden p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                aria-label="Open Menu"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -586,23 +603,132 @@ fetch('${domain}/api/v1/generate', {
       </section >
 
       {/* Footer */}
-      < footer className="bg-gray-900 text-gray-400 py-12" >
+      <footer className="bg-gray-900 text-gray-400 py-12">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <Logo theme="dark" size="sm" />
             <FooterYear t={t} />
           </div>
         </div>
-      </footer >
+      </footer>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-[100] md:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-gray-950/95 backdrop-blur-xl animate-in fade-in duration-300"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+
+          {/* Menu Content */}
+          <div className="relative h-full flex flex-col p-8 animate-in slide-in-from-right duration-500 ease-out">
+            <div className="flex items-center justify-between mb-12">
+              <Logo size="md" theme="dark" />
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-2 text-gray-400 hover:text-white bg-white/5 rounded-xl transition-all"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Navigation Links */}
+            <nav className="flex flex-col gap-6 mb-12">
+              <a
+                href="#editor"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-2xl font-black text-white hover:text-blue-400 transition-colors uppercase tracking-tight"
+              >
+                {t("EDITOR")}
+              </a>
+              <a
+                href="#api"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-2xl font-black text-white hover:text-blue-400 transition-colors uppercase tracking-tight"
+              >
+                {t("API")}
+              </a>
+              <a
+                href="#mcp"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-2xl font-black text-white hover:text-blue-400 transition-colors uppercase tracking-tight"
+              >
+                {t("MCP")}
+              </a>
+              <a
+                href="#faq"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-2xl font-black text-white hover:text-blue-400 transition-colors uppercase tracking-tight"
+              >
+                {t("FAQ")}
+              </a>
+            </nav>
+
+            {/* Language Switcher */}
+            <div className="pt-8 border-t border-white/10 mb-8">
+              <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">{t("Language")}</div>
+              <button
+                onClick={() => {
+                  setLocale(locale === 'en' ? 'es' : 'en');
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-2xl border border-white/10 text-white w-full transition-all active:scale-95"
+              >
+                <span className="text-sm font-bold uppercase">{locale === 'en' ? 'English' : 'Español'}</span>
+                <svg className="w-5 h-5 text-gray-500 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 11.37 9.188 16.225 5 19.168" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+                </svg>
+              </button>
+            </div>
+
+            {/* Auth Actions */}
+            <div className="mt-auto space-y-4">
+              {isAuthenticated ? (
+                <Link
+                  href="/dashboard"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-white text-gray-900 font-black rounded-2xl hover:bg-gray-100 transition-all shadow-xl shadow-white/5"
+                >
+                  {t("Go to Dashboard")}
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-full flex items-center justify-center px-8 py-4 bg-white/5 text-white font-black rounded-2xl border border-white/10 hover:bg-white/10 transition-all"
+                  >
+                    {t("Sign In")}
+                  </Link>
+                  <Link
+                    href="/register"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-full flex items-center justify-center px-8 py-4 bg-white text-gray-900 font-black rounded-2xl hover:bg-gray-100 transition-all shadow-xl shadow-white/5"
+                  >
+                    {t("Get Started")}
+                  </Link>
+                </>
+              )}
+            </div>
+
+            {/* Footer in Menu */}
+            <div className="mt-12 text-center">
+              <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+                © {new Date().getFullYear()} PDFGenAI
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div >
   );
 }
 
 function FooterYear({ t }: { t: (k: string) => string }) {
-  const [year, setYear] = useState(2025);
-  useEffect(() => {
-    setYear(new Date().getFullYear());
-  }, []);
+  const [year] = useState(() => new Date().getFullYear());
 
   return (
     <div className="text-sm">

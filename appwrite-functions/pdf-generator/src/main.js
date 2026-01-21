@@ -1,49 +1,11 @@
 import { Client, Databases, Storage, ID } from 'node-appwrite';
 import { InputFile } from 'node-appwrite/file';
+import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
 import Handlebars from 'handlebars';
 import { SignJWT } from 'jose';
-import fs from 'fs';
-import { execSync } from 'child_process';
 
-const findChromium = (log) => {
-    const isDebug = process.env.DEBUG === 'true';
-    if (isDebug) {
-        log("--- DEBUG MODE START ---");
-        try {
-            log(`which chromium-browser: ${execSync('which chromium-browser').toString().trim() || 'not found'}`);
-        } catch (e) { log(`which chromium-browser failed: ${e.message}`); }
-        try {
-            log(`which chromium: ${execSync('which chromium').toString().trim() || 'not found'}`);
-        } catch (e) { log(`which chromium failed: ${e.message}`); }
-        try {
-            log(`which chromedriver: ${execSync('which chromedriver').toString().trim() || 'not found'}`);
-        } catch (e) { log(`which chromedriver failed: ${e.message}`); }
-        try {
-            log(`ls -l /usr/bin | grep chrom: \n${execSync('ls -l /usr/bin | grep chrom').toString().trim() || 'none'}`);
-        } catch (e) { log(`ls grep failed: ${e.message}`); }
-        log("--- DEBUG MODE END ---");
-    }
 
-    const paths = [
-        process.env.CHROMIUM_PATH || "/usr/bin/chromium-browser",
-        "/usr/bin/chromium-browser",
-        "/usr/bin/chromium",
-        "/usr/local/bin/chromium",
-        "/usr/local/bin/chromium-browser"
-    ].filter(Boolean);
-
-    for (const path of paths) {
-        if (fs.existsSync(path)) {
-            log(`Found Chromium at: ${path}`);
-            return path;
-        }
-    }
-
-    log(`WARNING: Chromium not found in standard paths: ${paths.join(', ')}`);
-    // Fallback to environment variable or default
-    return process.env.CHROMIUM_PATH || "/usr/bin/chromium-browser";
-};
 
 function registerHbsHelpers() {
     if (Handlebars.helpers["inc"]) return;
@@ -183,8 +145,7 @@ const main = async ({ req, res, log, error }) => {
     // Domain for download URL (optional, fallback to APP_URL or request host if possible, but env is best)
     // const APP_DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL || "https://pdfgen.ai";
 
-    // Default to Alpine Linux chromium path if not specified
-    const CHROMIUM_PATH = findChromium(log);
+    // Webhook and Project configuration
 
     if (!API_KEY || !PROJECT_ID || !DATABASE_ID || !JWT_SECRET) {
         error("Missing required environment variables.");
@@ -204,7 +165,7 @@ const main = async ({ req, res, log, error }) => {
         // 2. Parse Payload
         let payload = req.body;
         if (typeof payload === 'string') {
-            try { payload = JSON.parse(payload); } catch (e) { }
+            try { payload = JSON.parse(payload); } catch { }
         }
 
         if (!payload || !payload.$id) {
@@ -262,26 +223,18 @@ const main = async ({ req, res, log, error }) => {
         // Check if browser exists and is connected
         if (browser && !browser.isConnected()) {
             log("Browser disconnected, closing old instance...");
-            try { await browser.close(); } catch (e) { }
+            try { await browser.close(); } catch { }
             browser = null;
         }
 
         if (!browser) {
-            log(`Launching Chromium from: ${CHROMIUM_PATH}`);
+            log(`Launching Chromium via @sparticuz/chromium...`);
 
             browser = await puppeteer.launch({
-                executablePath: CHROMIUM_PATH,
-                headless: true,
-                args: [
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--no-first-run",
-                    "--no-zygote",
-                    "--single-process",
-                    "--disable-extensions"
-                ],
+                args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+                defaultViewport: chromium.defaultViewport,
+                executablePath: await chromium.executablePath(),
+                headless: chromium.headless,
                 ignoreHTTPSErrors: true,
             });
         } else {
@@ -359,7 +312,7 @@ const main = async ({ req, res, log, error }) => {
 
         // 6. Upload to Storage
         const fileId = ID.unique();
-        const file = await storage.createFile(
+        await storage.createFile(
             PDF_BUCKET_ID,
             fileId,
             InputFile.fromBuffer(pdfBuffer, `${name}.pdf`)
@@ -418,7 +371,7 @@ const main = async ({ req, res, log, error }) => {
             // Re-extract webhook callback
             let payload = req.body;
             if (typeof payload === 'string') {
-                try { payload = JSON.parse(payload); } catch (e) { }
+                try { payload = JSON.parse(payload); } catch { }
             }
             const webhookCallback = payload?.webhook_callback;
 

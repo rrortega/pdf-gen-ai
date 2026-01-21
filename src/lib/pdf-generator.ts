@@ -110,6 +110,7 @@ export class PDFGenerator {
       const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${html}</body></html>`;
 
       await page.emulateMediaType("print");
+      await page.setRequestInterception(true);
 
       // SECURITY: Enable Request Interception to block SSRF (Private IPs, etc.)
       page.on('request', request => {

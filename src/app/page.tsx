@@ -245,7 +245,7 @@ export default function Home() {
                   <code><br /><br />{isAsync ? `  {
     "success": true,
     "status": "queued",
-    "documentId": "6970e8720004cd2b4329",
+    "download_id": "6970e8720004cd2b4329",
     "message": "Document generation enqueued. You will be notified via webhook." 
   }
   ` : `  {
@@ -258,7 +258,7 @@ export default function Home() {
       "status": "completed",
       "signature": "eyJhbGciOiJIUzI1NiIsInR5cCI..."
     },
-    "pdfUrl": "https://${domain}/api/v1/documents/doc_99a8b2/download?signature=..."
+    "download_url": "https://${domain}/api/v1/documents/doc_99a8b2/download?signature=..."
   }`} {isAsync && (<span className="text-red-300 font-black italic">/**<br />     Check the document status by GET to<br />     {domain}/api/v1/documents/6970e8720004cd2b4329<br />   */</span>)}</code>
                 </pre>
               </div>

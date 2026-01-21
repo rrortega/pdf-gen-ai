@@ -93,7 +93,7 @@ function getOrCreateServer() {
             const secret = encoder.encode(JWT_SECRET);
             const signature = await new SignJWT({
                 userId: user.id,
-                documentId: createdDocument.$id
+                download_id: createdDocument.$id
             })
                 .setProtectedHeader({ alg: "HS256" })
                 .setIssuedAt()

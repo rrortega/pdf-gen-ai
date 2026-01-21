@@ -96,12 +96,12 @@ export async function POST(request: NextRequest) {
 
         if (generationMode === "queue") {
             // QUEUE MODE: Create document. Function will handle webhook logging.
-            const documentId = ID.unique();
+            const download_id = ID.unique();
 
             await tables.createRow({
                 databaseId: DATABASE_ID,
                 tableId: COLLECTIONS.DOCUMENTS,
-                rowId: documentId,
+                rowId: download_id,
                 data: {
                     template_id,
                     name,
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({
                     success: true,
                     status: "queued",
-                    documentId: documentId,
+                    download_id: download_id,
                     message: "Document generation enqueued. You will be notified via webhook."
                 });
             } else {
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
                 // ...Polling Logic (omitted for brevity as it remains same, only minor webhook logic changed)...
                 // Since webhook_callback logic is above, this block is for NO webhook_callback
 
-                console.log(`[Queue-Wait] Polling status for document ${documentId}...`);
+                console.log(`[Queue-Wait] Polling status for document ${download_id}...`);
                 const startTime = Date.now();
                 const timeoutSeconds = parseInt(process.env.PDF_GENERATION_TIMEOUT || "30", 10);
                 const timeoutMs = timeoutSeconds * 1000;
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
                     const doc = await tables.getRow({
                         databaseId: DATABASE_ID,
                         tableId: COLLECTIONS.DOCUMENTS,
-                        rowId: documentId
+                        rowId: download_id
                     });
 
                     if (doc.status === "completed") {
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
                                 status: doc.status,
                                 signature: signature
                             },
-                            pdfUrl: `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${doc.$id}/download?signature=${signature}`,
+                            download_url: `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${doc.$id}/download?signature=${signature}`,
                         });
                     }
 
@@ -176,17 +176,17 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Timeout
-                console.error(`[Queue-Wait] Timeout waiting for document ${documentId}`);
+                console.error(`[Queue-Wait] Timeout waiting for document ${download_id}`);
                 try {
                     await tables.updateRow({
                         databaseId: DATABASE_ID,
                         tableId: COLLECTIONS.DOCUMENTS,
-                        rowId: documentId,
+                        rowId: download_id,
                         data: { status: "failed", error_message: "Document generation timed out in queue" }
                     });
                 } catch (dbErr) { console.error(dbErr); }
 
-                return NextResponse.json({ error: "Document generation timed out", documentId, status: "failed" }, { status: 504 });
+                return NextResponse.json({ error: "Document generation timed out", download_id, status: "failed" }, { status: 504 });
 
             }
 
@@ -195,13 +195,13 @@ export async function POST(request: NextRequest) {
             // Not really "async" if we process it here, but requested behavior:
             // "el controlador antes de mandar el webhook lo registra aqui en esta tabla y luego lo procesa"
 
-            const documentId = ID.unique();
+            const download_id = ID.unique();
 
             // 1. Create document with "queued" status
             await tables.createRow({
                 databaseId: DATABASE_ID,
                 tableId: COLLECTIONS.DOCUMENTS,
-                rowId: documentId,
+                rowId: download_id,
                 data: {
                     template_id,
                     name,
@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
                         tableId: COLLECTIONS.WEBHOOKS,
                         rowId: ID.unique(),
                         data: {
-                            document_id: documentId,
+                            document_id: download_id,
                             url: webhook_callback,
                             retry: 0,
                             response: null,
@@ -242,7 +242,7 @@ export async function POST(request: NextRequest) {
                     });
                     webhookId = webhookRecord.$id;
 
-                    console.log(`[Background] Starting generation for document: ${documentId}`);
+                    console.log(`[Background] Starting generation for document: ${download_id}`);
 
                     const templateHtml = template.html || "";
                     const templateCss = template.css || "";
@@ -257,7 +257,7 @@ export async function POST(request: NextRequest) {
                     const secret = encoder.encode(JWT_SECRET);
                     const signature = await new SignJWT({
                         userId: user.id,
-                        documentId: documentId
+                        download_id: download_id
                     })
                         .setProtectedHeader({ alg: "HS256" })
                         .setIssuedAt()
@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
                     await tables.updateRow({
                         databaseId: DATABASE_ID,
                         tableId: COLLECTIONS.DOCUMENTS,
-                        rowId: documentId,
+                        rowId: download_id,
                         data: {
                             pdf_file: fileId,
                             status: "completed",
@@ -277,13 +277,13 @@ export async function POST(request: NextRequest) {
                     });
 
                     // 3. Process Webhook (Send it)
-                    const downloadUrl = `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${documentId}/download?signature=${signature}`;
+                    const downloadUrl = `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${download_id}/download?signature=${signature}`;
 
                     const webhookData = {
                         success: true,
-                        documentId: documentId,
+                        download_id: download_id,
                         status: "completed",
-                        pdfUrl: downloadUrl,
+                        download_url: downloadUrl,
                         name: name,
                         size: size
                     };
@@ -305,14 +305,14 @@ export async function POST(request: NextRequest) {
 
                 } catch (error: any) {
                     const errorMessage = error instanceof Error ? error.message : "Background generation failed";
-                    console.error(`[Background] Generation failed for ${documentId}:`, error);
+                    console.error(`[Background] Generation failed for ${download_id}:`, error);
 
                     // Update document failed
                     try {
                         await tables.updateRow({
                             databaseId: DATABASE_ID,
                             tableId: COLLECTIONS.DOCUMENTS,
-                            rowId: documentId,
+                            rowId: download_id,
                             data: { status: "failed", error_message: errorMessage }
                         });
                     } catch (e) { }
@@ -321,7 +321,7 @@ export async function POST(request: NextRequest) {
                     if (webhookId) {
                         const failureData = {
                             success: false,
-                            documentId: documentId,
+                            download_id: download_id,
                             status: "failed",
                             error: errorMessage
                         };
@@ -347,7 +347,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
                 success: true,
                 status: "queued",
-                documentId: documentId,
+                download_id: download_id,
                 message: "Document generation enqueued. You will be notified via webhook."
             });
 
@@ -364,9 +364,9 @@ export async function POST(request: NextRequest) {
                     `${name}.pdf`,
                 );
 
-                const documentId = ID.unique();
+                const download_id = ID.unique();
                 const secret = encoder.encode(JWT_SECRET);
-                const signature = await new SignJWT({ userId: user.id, documentId })
+                const signature = await new SignJWT({ userId: user.id, download_id })
                     .setProtectedHeader({ alg: "HS256" })
                     .setIssuedAt()
                     .sign(secret);
@@ -374,7 +374,7 @@ export async function POST(request: NextRequest) {
                 const createdDocument = await tables.createRow({
                     databaseId: DATABASE_ID,
                     tableId: COLLECTIONS.DOCUMENTS,
-                    rowId: documentId,
+                    rowId: download_id,
                     data: {
                         template_id,
                         name,
@@ -403,7 +403,7 @@ export async function POST(request: NextRequest) {
                         status: createdDocument.status,
                         signature: signature
                     },
-                    pdfUrl: `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${createdDocument.$id}/download?signature=${signature}`,
+                    download_url: `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${createdDocument.$id}/download?signature=${signature}`,
                 });
             } catch (pdfError: any) {
                 const errorMessage = pdfError instanceof Error ? pdfError.message : "Failed to generate PDF";

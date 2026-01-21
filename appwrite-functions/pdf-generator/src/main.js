@@ -145,7 +145,7 @@ function registerHbsHelpers() {
 // Global browser instance for reuse
 let browser = null;
 
-const createWebhookRecord = async (db, databaseId, collectionId, documentId, url, payload, log, error) => {
+const createWebhookRecord = async (db, databaseId, collectionId, download_id, url, payload, log, error) => {
     if (!url) return;
     try {
         log(`Creating webhook record for: ${url}`);
@@ -154,7 +154,7 @@ const createWebhookRecord = async (db, databaseId, collectionId, documentId, url
             collectionId,
             ID.unique(),
             {
-                document_id: documentId,
+                document_id: download_id,
                 url: url,
                 retry: 0,
                 response: null,
@@ -212,7 +212,7 @@ const main = async ({ req, res, log, error }) => {
             return res.json({ success: true, message: "Ignored: No document ID" });
         }
 
-        const documentId = payload.$id;
+        const download_id = payload.$id;
         const status = payload.status;
         const templateId = payload.template_id;
         const encodedData = payload.data;
@@ -223,11 +223,11 @@ const main = async ({ req, res, log, error }) => {
 
         // ONLY process if status is 'queued'
         if (status !== 'queued') {
-            log(`Document ${documentId} is not in 'queued' status (current: ${status}). Skipping.`);
+            log(`Document ${download_id} is not in 'queued' status (current: ${status}). Skipping.`);
             return res.json({ success: true, message: "Ignored: Status not queued" });
         }
 
-        log(`Starting generation for Document ${documentId} (Template: ${templateId})...`);
+        log(`Starting generation for Document ${download_id} (Template: ${templateId})...`);
 
         // 3. Fetch Template
         const template = await db.getDocument(DATABASE_ID, TEMPLATES_ID, templateId);
@@ -368,7 +368,7 @@ const main = async ({ req, res, log, error }) => {
 
         // 7. Generate Signature
         const secret = new TextEncoder().encode(JWT_SECRET);
-        const signature = await new SignJWT({ userId: userId, documentId: documentId })
+        const signature = await new SignJWT({ userId: userId, download_id: download_id })
             .setProtectedHeader({ alg: "HS256" })
             .setIssuedAt()
             .sign(secret);
@@ -379,7 +379,7 @@ const main = async ({ req, res, log, error }) => {
         await db.updateDocument(
             DATABASE_ID,
             DOCUMENTS_ID,
-            documentId,
+            download_id,
             {
                 status: 'completed',
                 pdf_file: fileId,
@@ -387,24 +387,24 @@ const main = async ({ req, res, log, error }) => {
                 signature: signature
             }
         );
-        log(`Document ${documentId} updated to 'completed'.`);
+        log(`Document ${download_id} updated to 'completed'.`);
 
         // 9. NEW: Create Webhook Record (Success)
         if (webhookCallback) {
             const webhookData = {
                 success: true,
-                documentId: documentId,
+                download_id: download_id,
                 status: "completed",
-                pdfUrl: `${ENDPOINT.replace('/v1', '')}/storage/buckets/${PDF_BUCKET_ID}/files/${fileId}/view?project=${PROJECT_ID}`,
+                download_url: `${ENDPOINT.replace('/v1', '')}/storage/buckets/${PDF_BUCKET_ID}/files/${fileId}/view?project=${PROJECT_ID}`,
                 name: name,
                 size: sizeInKb
             };
-            await createWebhookRecord(db, DATABASE_ID, WEBHOOKS_ID, documentId, webhookCallback, webhookData, log, error);
+            await createWebhookRecord(db, DATABASE_ID, WEBHOOKS_ID, download_id, webhookCallback, webhookData, log, error);
         }
 
         return res.json({
             success: true,
-            documentId: documentId,
+            download_id: download_id,
             fileId: fileId,
             size: sizeInKb
         });
@@ -426,7 +426,7 @@ const main = async ({ req, res, log, error }) => {
             if (webhookCallback) {
                 const failureData = {
                     success: false,
-                    documentId: req.body.$id,
+                    download_id: req.body.$id,
                     status: "failed",
                     error: err.message
                 };

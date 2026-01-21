@@ -4,8 +4,10 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { getAppwriteClientSafe, Databases } from "@/lib/appwrite-client";
 import { Query } from "appwrite";
+import JSZip from "jszip";
 
 export interface Document {
+    // ... (rest is same)
     $id: string;
     name: string;
     template_id: string;
@@ -57,10 +59,25 @@ export default function DocumentsList({
     const [isDeleting, setIsDeleting] = useState(false);
     const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
 
+    // Batch Actions State
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+    const [batchType, setBatchType] = useState<'download' | 'delete' | null>(null);
+    const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+
     // Track documents being deleted for UX effects
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
     // Track documents that should be animated out before removal
     const [animatingOutIds, setAnimatingOutIds] = useState<Set<string>>(new Set());
+
+    // Toggle mobile bottom nav based on selection
+    useEffect(() => {
+        if (selectedIds.size > 0) {
+            window.dispatchEvent(new CustomEvent("hide-bottom-nav"));
+        } else {
+            window.dispatchEvent(new CustomEvent("show-bottom-nav"));
+        }
+    }, [selectedIds.size]);
 
     // Toast state
     const [showNewDocToast, setShowNewDocToast] = useState(false);
@@ -69,6 +86,7 @@ export default function DocumentsList({
     const [selectedWebhookDoc, setSelectedWebhookDoc] = useState<Document | null>(null);
     const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
+    const [selectedErrorDoc, setSelectedErrorDoc] = useState<Document | null>(null);
 
     // Refs to store current state to use in realtime callback
     const pageRef = useRef(currentPage);
@@ -229,7 +247,9 @@ export default function DocumentsList({
             const res = await fetch(`/api/v1/documents/${id}`, {
                 method: "DELETE",
             });
-            if (res.ok) {
+
+            // If the document is already gone (404), we also count it as success for the UI
+            if (res.ok || res.status === 404) {
                 setAnimatingOutIds(prev => new Set(prev).add(id));
                 setTimeout(() => {
                     setDocuments(prev => prev.filter(doc => doc.$id !== id));
@@ -246,6 +266,28 @@ export default function DocumentsList({
                     setTotal(prev => Math.max(0, prev - 1));
                 }, 500);
             } else {
+                const data = await res.json().catch(() => ({}));
+                // Check for specific error message if it's not a 404 status but contains the error
+                if (data.error === "Row with the requested ID could not be found.") {
+                    setAnimatingOutIds(prev => new Set(prev).add(id));
+                    // ... same logic as success
+                    setTimeout(() => {
+                        setDocuments(prev => prev.filter(doc => doc.$id !== id));
+                        setAnimatingOutIds(prev => {
+                            const next = new Set(prev);
+                            next.delete(id);
+                            return next;
+                        });
+                        setDeletingIds(prev => {
+                            const next = new Set(prev);
+                            next.delete(id);
+                            return next;
+                        });
+                        setTotal(prev => Math.max(0, prev - 1));
+                    }, 500);
+                    return;
+                }
+
                 setDeletingIds(prev => {
                     const next = new Set(prev);
                     next.delete(id);
@@ -273,6 +315,156 @@ export default function DocumentsList({
         const domain = process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL || "";
         const url = `${domain}/api/v1/documents/${doc.$id}/download${doc.signature ? `?signature=${doc.signature}` : ''}`;
         window.open(url, "_blank");
+    };
+
+    // Batch Selection Helpers
+    const toggleSelect = (id: string, isDeletingNow: boolean) => {
+        if (isDeletingNow || isBatchProcessing) return;
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (isBatchProcessing) return;
+        if (selectedIds.size === filteredDocuments.length) {
+            setSelectedIds(new Set());
+        } else {
+            const selectable = filteredDocuments
+                .filter(d => !deletingIds.has(d.$id))
+                .map(d => d.$id);
+            setSelectedIds(new Set(selectable));
+        }
+    };
+
+    const handleBatchDelete = async () => {
+        if (selectedIds.size === 0 || isBatchProcessing) return;
+
+        setIsBatchProcessing(true);
+        setBatchType('delete');
+        const idsToDelete = Array.from(selectedIds);
+        setBatchProgress({ current: 0, total: idsToDelete.length });
+
+        for (const id of idsToDelete) {
+            // Re-use existing handleDelete logic but without confirm modal
+            setDeletingIds(prev => new Set(prev).add(id));
+            try {
+                const res = await fetch(`/api/v1/documents/${id}`, { method: "DELETE" });
+                if (res.ok || res.status === 404) {
+                    setAnimatingOutIds(prev => new Set(prev).add(id));
+                    // Local state removal
+                    setTimeout(() => {
+                        setDocuments(prev => prev.filter(doc => doc.$id !== id));
+                        setAnimatingOutIds(prev => {
+                            const next = new Set(prev);
+                            next.delete(id);
+                            return next;
+                        });
+                        setDeletingIds(prev => {
+                            const next = new Set(prev);
+                            next.delete(id);
+                            return next;
+                        });
+                        setTotal(prev => Math.max(0, prev - 1));
+                    }, 500);
+                } else {
+                    const data = await res.json().catch(() => ({}));
+                    if (data.error === "Row with the requested ID could not be found.") {
+                        setAnimatingOutIds(prev => new Set(prev).add(id));
+                        setTimeout(() => {
+                            setDocuments(prev => prev.filter(doc => doc.$id !== id));
+                            setAnimatingOutIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+                            setDeletingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+                            setTotal(prev => Math.max(0, prev - 1));
+                        }, 500);
+                    }
+                }
+            } catch (err) {
+                console.error(`Batch delete error for ${id}:`, err);
+            }
+            setBatchProgress(prev => ({ ...prev, current: prev.current + 1 }));
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
+        }
+
+        setIsBatchProcessing(false);
+        setBatchType(null);
+
+        // Reset to first page and reload to bring fresh data from server
+        // Wait a bit for animations to finish
+        setTimeout(async () => {
+            setCurrentPage(1);
+            await fetchDocuments(1);
+        }, 600);
+    };
+
+    const handleBatchDownload = async () => {
+        if (selectedIds.size === 0 || isBatchProcessing) return;
+
+        setIsBatchProcessing(true);
+        setBatchType('download');
+        const idsToDownload = Array.from(selectedIds);
+
+        try {
+            // Direct download if only one item selected
+            if (idsToDownload.length === 1) {
+                const doc = documents.find(d => d.$id === idsToDownload[0]);
+                if (doc && doc.status === 'completed') {
+                    handleDownload(doc);
+                }
+                setSelectedIds(new Set());
+                setIsBatchProcessing(false);
+                setBatchType(null);
+                return;
+            }
+
+            // Normal ZIP process for multiple items
+            const zip = new JSZip();
+            setBatchProgress({ current: 0, total: idsToDownload.length });
+
+            for (const id of idsToDownload) {
+                const doc = documents.find(d => d.$id === id);
+                if (!doc || doc.status !== 'completed') {
+                    setBatchProgress(prev => ({ ...prev, current: prev.current + 1 }));
+                    continue;
+                }
+
+                const domain = process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL || "";
+                const url = `${domain}/api/v1/documents/${doc.$id}/download${doc.signature ? `?signature=${doc.signature}` : ''}`;
+
+                const response = await fetch(url);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    zip.file(`${doc.name.replace(/\.[^/.]+$/, "") || "document"}.pdf`, blob);
+                }
+
+                setBatchProgress(prev => ({ ...prev, current: prev.current + 1 }));
+            }
+
+            const content = await zip.generateAsync({ type: "blob" });
+            const zipUrl = URL.createObjectURL(content);
+            const link = window.document.createElement("a");
+            link.href = zipUrl;
+            link.download = `documents_batch_${new Date().getTime()}.zip`;
+            window.document.body.appendChild(link);
+            link.click();
+            window.document.body.removeChild(link);
+            URL.revokeObjectURL(zipUrl);
+
+            setSelectedIds(new Set());
+        } catch (err) {
+            console.error("Batch download error:", err);
+            alert(t("Failed to create ZIP file"));
+        } finally {
+            setIsBatchProcessing(false);
+            setBatchType(null);
+        }
     };
 
     // Webhook Logs Fetching
@@ -350,9 +542,22 @@ export default function DocumentsList({
                         <h1 className="text-3xl font-bold text-gray-900">
                             {t("My Documents")}
                         </h1>
-                        <p className="text-gray-500 mt-1">
-                            {total} {t("documents in total")}
-                        </p>
+                        <div className="flex items-center gap-4 mt-1">
+
+                            <button
+                                onClick={toggleSelectAll}
+                                className={`flex items-center border-gray-300 gap-1.5 px-3 py-1 rounded-lg border text-[10px] font-black uppercase tracking-wider transition-all ${selectedIds.size > 0 ? 'bg-gray-900 border-gray-900 text-white' : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-gray-900 hover:text-gray-900'}`}
+                            >
+                                <div className={`w-3 h-3 rounded border flex items-center justify-center transition-all ${selectedIds.size === filteredDocuments.length && filteredDocuments.length > 0 ? 'bg-white border-white' : 'border-current'}`}>
+                                    {selectedIds.size === filteredDocuments.length && filteredDocuments.length > 0 && (
+                                        <svg className="w-2 h-2 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    )}
+                                </div>
+                                {selectedIds.size === filteredDocuments.length && filteredDocuments.length > 0 ? t("Deselect all in this page") : t("Select all in this page")}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="relative w-full md:w-96">
@@ -403,11 +608,27 @@ export default function DocumentsList({
                                 return (
                                     <div
                                         key={doc.$id}
-                                        className={`bg-white rounded-2xl shadow-sm border border-gray-200 p-5 transition-all duration-500 flex flex-col md:flex-row md:items-center justify-between group gap-4 relative overflow-hidden ${isExploding ? 'scale-0 opacity-0 blur-xl rotate-12' :
-                                            isDeletingNow ? 'opacity-60 bg-gray-50' : 'hover:shadow-md hover:border-gray-900 cursor-default'
+                                        onClick={() => toggleSelect(doc.$id, isDeletingNow)}
+                                        className={`bg-white rounded-2xl shadow-sm border p-5 transition-all duration-500 flex flex-col md:flex-row md:items-center justify-between group gap-4 relative overflow-hidden ${isExploding ? 'scale-0 opacity-0 blur-xl rotate-12' :
+                                            isDeletingNow ? 'opacity-60 bg-gray-50' :
+                                                selectedIds.has(doc.$id) ? 'border-gray-900 bg-gray-50 shadow-md ring-2 ring-gray-900/5' :
+                                                    'hover:shadow-md hover:border-gray-900 cursor-pointer border-gray-300'
                                             }`}
                                     >
                                         <div className="flex items-center gap-5 min-w-0 flex-1">
+                                            {/* Selection Checkbox */}
+                                            {!isDeletingNow && (
+                                                <div className="flex items-center justify-center">
+                                                    <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${selectedIds.has(doc.$id) ? 'bg-gray-900 border-gray-900' : 'bg-white border-gray-200 group-hover:border-gray-400'}`}>
+                                                        {selectedIds.has(doc.$id) && (
+                                                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className={`p-4 bg-gray-50 text-gray-900 rounded-xl transition-all duration-300 shadow-sm ${isDeletingNow ? 'grayscale opacity-30' : 'group-hover:bg-gray-900 group-hover:text-white'}`}>
                                                 <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -418,33 +639,9 @@ export default function DocumentsList({
                                                     <h3 className={`text-xl font-bold text-gray-900 truncate transition-all duration-300 ${isDeletingNow ? 'line-through text-gray-400' : ''}`}>
                                                         {doc.name}
                                                     </h3>
-                                                    {!isDeletingNow && (
-                                                        <div className="flex items-center gap-2">
-                                                            <span
-                                                                className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider ${doc.status === 'completed' ? 'bg-green-100 text-green-700 border border-green-200' :
-                                                                    doc.status === 'failed' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-amber-100 text-amber-700 border border-amber-200 animate-pulse'
-                                                                    }`}
-                                                                title={doc.status === 'failed' && doc.error_message ? doc.error_message : undefined}
-                                                            >
-                                                                {t(doc.status)}
-                                                            </span>
-
-                                                            {doc.webhook_callback && (
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        openWebhookLogs(doc);
-                                                                    }}
-                                                                    className="flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 hover:bg-purple-200 transition-colors"
-                                                                >
-                                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                                                    </svg>
-                                                                    {t("Async")}
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                    <div className="text-[10px] text-gray-400 font-mono tracking-tight mt-0.5 opacity-60">
+                                                        ID: {doc.$id}
+                                                    </div>
                                                 </div>
                                                 <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
                                                     <div className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -464,10 +661,9 @@ export default function DocumentsList({
                                                     {doc.downloads !== undefined && !isDeletingNow && (
                                                         <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
                                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                                             </svg>
-                                                            {doc.downloads} {t("views")}
+                                                            {doc.downloads || 0} {t("downloads")}
                                                         </div>
                                                     )}
                                                 </div>
@@ -481,27 +677,37 @@ export default function DocumentsList({
                                                     {t("Deleting...")}
                                                 </div>
                                             ) : (
-                                                <>
-                                                    <button
-                                                        onClick={() => handleDownload(doc)}
-                                                        disabled={doc.status !== 'completed'}
-                                                        className="px-4 py-2 text-sm font-bold text-gray-900 border-2 border-gray-100 hover:border-gray-900 hover:bg-gray-900 hover:text-white rounded-xl transition-all flex items-center gap-2 disabled:opacity-20 disabled:cursor-not-allowed disabled:border-gray-100 shadow-sm"
+                                                <div className="flex items-center gap-2">
+                                                    <span
+                                                        className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-wider ${doc.status === 'completed' ? 'bg-green-100 text-green-700 border border-green-200' :
+                                                            doc.status === 'failed' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-amber-100 text-amber-700 border border-amber-200 animate-pulse'
+                                                            }`}
+                                                        onClick={(e) => {
+                                                            if (doc.status === 'failed') {
+                                                                e.stopPropagation();
+                                                                setSelectedErrorDoc(doc);
+                                                            }
+                                                        }}
+                                                        title={doc.status === 'failed' ? (doc.error_message || t("Click to see error details")) : undefined}
                                                     >
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                                        </svg>
-                                                        {t("Download")}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => confirmDelete(doc.$id)}
-                                                        className="p-2.5 text-gray-400 border-2 border-transparent hover:text-red-600 hover:bg-red-50 hover:border-red-100 rounded-xl transition-all transform hover:scale-110 active:scale-95"
-                                                        title={t("Delete")}
-                                                    >
-                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                        </svg>
-                                                    </button>
-                                                </>
+                                                        {t(doc.status)}
+                                                    </span>
+
+                                                    {doc.webhook_callback && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                openWebhookLogs(doc);
+                                                            }}
+                                                            className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 hover:bg-purple-200 transition-colors"
+                                                        >
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                            </svg>
+                                                            {t("Async")}
+                                                        </button>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -512,6 +718,7 @@ export default function DocumentsList({
                         {/* Pagination UI */}
                         {totalPages > 1 && (
                             <div className="mt-10 flex items-center justify-center gap-2 mb-20 md:mb-2">
+
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                     disabled={currentPage === 1 || loading}
@@ -536,6 +743,9 @@ export default function DocumentsList({
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                     </svg>
                                 </button>
+                                <p className="text-gray-500 text-sm">
+                                    {total} {t("documents in total")}
+                                </p>
                             </div>
                         )}
                     </>
@@ -543,60 +753,166 @@ export default function DocumentsList({
             </div>
 
             {/* Confirmation Modal */}
-            {isDeleting && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full p-8 transform animate-in zoom-in-95 duration-300 border border-gray-100">
-                        <div className="flex items-center justify-center w-20 h-20 mx-auto bg-red-50 rounded-full mb-6 border-4 border-white shadow-inner">
-                            <svg className="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                        </div>
-                        <h3 className="text-2xl font-black text-center text-gray-900 mb-3">
-                            {t("Delete Document")}
-                        </h3>
-                        <p className="text-center text-gray-500 mb-8 leading-relaxed">
-                            {t("Are you sure you want to delete this document? This action cannot be undone and will also remove the file from storage.")}
-                        </p>
-                        <div className="flex gap-4">
-                            <button
-                                onClick={() => setIsDeleting(false)}
-                                className="flex-1 px-6 py-3.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-2xl font-black transition-all"
-                            >
-                                {t("Cancel")}
-                            </button>
-                            <button
-                                onClick={handleDelete}
-                                className="flex-1 px-6 py-3.5 text-white bg-red-600 hover:bg-red-700 rounded-2xl font-black transition-all shadow-xl shadow-red-200 flex items-center justify-center"
-                            >
-                                {t("Delete")}
-                            </button>
+            {
+                isDeleting && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full p-8 transform animate-in zoom-in-95 duration-300 border border-gray-100">
+                            <div className="flex items-center justify-center w-20 h-20 mx-auto bg-red-50 rounded-full mb-6 border-4 border-white shadow-inner">
+                                <svg className="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-2xl font-black text-center text-gray-900 mb-3">
+                                {t("Delete Document")}
+                            </h3>
+                            <p className="text-center text-gray-500 mb-8 leading-relaxed">
+                                {t("Are you sure you want to delete this document? This action cannot be undone and will also remove the file from storage.")}
+                            </p>
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => setIsDeleting(false)}
+                                    className="flex-1 px-6 py-3.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-2xl font-black transition-all"
+                                >
+                                    {t("Cancel")}
+                                </button>
+                                <button
+                                    onClick={handleDelete}
+                                    className="flex-1 px-6 py-3.5 text-white bg-red-600 hover:bg-red-700 rounded-2xl font-black transition-all shadow-xl shadow-red-200 flex items-center justify-center"
+                                >
+                                    {t("Delete")}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Webhook Logs Modal */}
-            {selectedWebhookDoc && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white rounded-[2rem] shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col transform animate-in zoom-in-95 duration-300 border border-gray-100">
+            {
+                selectedWebhookDoc && (
+                    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                        <div className="bg-white rounded-[2rem] shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col transform animate-in zoom-in-95 duration-300 border border-gray-100">
 
+                            {/* Header */}
+                            <div className="p-8 border-b border-gray-100 flex items-start justify-between">
+                                <div>
+                                    <h3 className="text-2xl font-black text-gray-900 mb-2 flex items-center gap-3">
+                                        <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                            </svg>
+                                        </div>
+                                        {t("Webhook Logs")}
+                                    </h3>
+                                    <div className="text-gray-500 text-sm">
+                                        {t("Delivery logs for document:")} <span className="font-bold text-gray-800">{selectedWebhookDoc?.name}</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedWebhookDoc(null)}
+                                    className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50">
+
+                                {/* Callback URL Info */}
+                                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6">
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t("Callback URL")}</label>
+                                    <code className="text-sm text-gray-800 break-all font-mono block bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                        {selectedWebhookDoc?.webhook_callback}
+                                    </code>
+                                </div>
+
+                                {loadingLogs ? (
+                                    <div className="flex flex-col items-center justify-center py-12">
+                                        <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
+                                        <div className="text-gray-500 font-medium animate-pulse">{t("Loading webhook logs...")}</div>
+                                    </div>
+                                ) : webhookLogs.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+                                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                        </div>
+                                        <h4 className="text-lg font-bold text-gray-900 mb-1">{t("No logs found yet")}</h4>
+                                        <p className="text-gray-500 text-sm max-w-xs mx-auto">
+                                            {t("Webhook might still be processing or hasn't fired yet.")}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {webhookLogs.map((log) => (
+                                            <div key={log.$id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                                <div className="p-4 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border ${(log.response && log.response.includes('success')) || (log.response && log.response.includes('200'))
+                                                            ? 'bg-green-50 text-green-700 border-green-200'
+                                                            : 'bg-red-50 text-red-700 border-red-200'
+                                                            }`}>
+                                                            {(log.response && log.response.includes('200')) ? t("Success") : t("Failed")}
+                                                        </span>
+                                                        <span className="text-xs text-gray-400 font-mono">
+                                                            {new Date(log.$createdAt).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-xs font-bold text-gray-500">
+                                                        {t("Attempt")}: {log.retry}
+                                                    </div>
+                                                </div>
+                                                <div className="p-4 bg-gray-900 text-gray-300 font-mono text-xs overflow-x-auto">
+                                                    <pre className="whitespace-pre-wrap break-all">
+                                                        {log.response || t("No response data")}
+                                                    </pre>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-[2rem] flex justify-end">
+                                <button
+                                    onClick={() => setSelectedWebhookDoc(null)}
+                                    className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+                                >
+                                    {t("Close Log")}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Error Diagnostics Modal */}
+            {selectedErrorDoc && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" onClick={() => setSelectedErrorDoc(null)} />
+                    <div className="relative bg-white w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         {/* Header */}
                         <div className="p-8 border-b border-gray-100 flex items-start justify-between">
                             <div>
                                 <h3 className="text-2xl font-black text-gray-900 mb-2 flex items-center gap-3">
-                                    <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                                    <div className="p-2 bg-red-100 rounded-lg text-red-600">
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                         </svg>
                                     </div>
-                                    {t("Webhook Logs")}
+                                    {t("Error Diagnostics")}
                                 </h3>
                                 <div className="text-gray-500 text-sm">
-                                    {t("Delivery logs for document:")} <span className="font-bold text-gray-800">{selectedWebhookDoc.name}</span>
+                                    {t("Document ID:")} <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded ml-1">{selectedErrorDoc.$id}</span>
                                 </div>
                             </div>
                             <button
-                                onClick={() => setSelectedWebhookDoc(null)}
+                                onClick={() => setSelectedErrorDoc(null)}
                                 className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all"
                             >
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -606,76 +922,136 @@ export default function DocumentsList({
                         </div>
 
                         {/* Content */}
-                        <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50">
-
-                            {/* Callback URL Info */}
-                            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6">
-                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t("Callback URL")}</label>
-                                <code className="text-sm text-gray-800 break-all font-mono block bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                    {selectedWebhookDoc.webhook_callback}
-                                </code>
-                            </div>
-
-                            {loadingLogs ? (
-                                <div className="flex flex-col items-center justify-center py-12">
-                                    <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
-                                    <div className="text-gray-500 font-medium animate-pulse">{t("Loading webhook logs...")}</div>
+                        <div className="p-8 bg-gray-50/50">
+                            <div className="bg-white p-6 rounded-2xl border border-red-100 shadow-sm">
+                                <label className="text-xs font-bold text-red-400 uppercase tracking-widest mb-3 block">{t("Error Message")}</label>
+                                <div className="bg-red-50/50 p-4 rounded-xl border border-red-100/50">
+                                    <pre className="text-sm text-red-900 break-all font-mono whitespace-pre-wrap leading-relaxed">
+                                        {selectedErrorDoc.error_message || t("No direct error message stored in document. Please check webhook logs for async errors.")}
+                                    </pre>
                                 </div>
-                            ) : webhookLogs.length === 0 ? (
-                                <div className="text-center py-12">
-                                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
-                                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
+
+                                {selectedErrorDoc.webhook_callback && (
+                                    <div className="mt-8 pt-6 border-t border-gray-100">
+                                        <p className="text-sm text-gray-500 mb-4">
+                                            {t("This document has a webhook configured. Detailed delivery errors might be logged there.")}
+                                        </p>
+                                        <button
+                                            onClick={() => {
+                                                const doc = selectedErrorDoc;
+                                                setSelectedErrorDoc(null);
+                                                openWebhookLogs(doc);
+                                            }}
+                                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-all shadow-lg shadow-purple-200"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                            </svg>
+                                            {t("View Webhook Logs")}
+                                        </button>
                                     </div>
-                                    <h4 className="text-lg font-bold text-gray-900 mb-1">{t("No logs found yet")}</h4>
-                                    <p className="text-gray-500 text-sm max-w-xs mx-auto">
-                                        {t("Webhook might still be processing or hasn't fired yet.")}
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {webhookLogs.map((log) => (
-                                        <div key={log.$id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                                            <div className="p-4 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
-                                                <div className="flex items-center gap-3">
-                                                    <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border ${(log.response && log.response.includes('success')) || (log.response && log.response.includes('200'))
-                                                            ? 'bg-green-50 text-green-700 border-green-200'
-                                                            : 'bg-red-50 text-red-700 border-red-200'
-                                                        }`}>
-                                                        {(log.response && log.response.includes('200')) ? t("Success") : t("Failed")}
-                                                    </span>
-                                                    <span className="text-xs text-gray-400 font-mono">
-                                                        {new Date(log.$createdAt).toLocaleString()}
-                                                    </span>
-                                                </div>
-                                                <div className="text-xs font-bold text-gray-500">
-                                                    {t("Attempt")}: {log.retry}
-                                                </div>
-                                            </div>
-                                            <div className="p-4 bg-gray-900 text-gray-300 font-mono text-xs overflow-x-auto">
-                                                <pre className="whitespace-pre-wrap break-all">
-                                                    {log.response || t("No response data")}
-                                                </pre>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
 
                         {/* Footer */}
                         <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-[2rem] flex justify-end">
                             <button
-                                onClick={() => setSelectedWebhookDoc(null)}
+                                onClick={() => setSelectedErrorDoc(null)}
                                 className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
                             >
-                                {t("Close Log")}
+                                {t("Close")}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
+
+            {/* Batch Floating Action Bar (Compact) */}
+            {
+                selectedIds.size > 0 && (
+                    <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[80] animate-in slide-in-from-bottom-10 duration-500">
+                        <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl p-2.5 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.5)] flex items-center gap-3">
+                            <div className="flex items-center gap-3 pl-2.5 border-r border-white/10 pr-4">
+                                <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center text-white">
+                                    <span className="text-xs font-black">{selectedIds.size}</span>
+                                </div>
+                                <div className="hidden sm:block">
+                                    <div className="text-white font-bold text-[10px] uppercase tracking-widest leading-none">
+                                        {t("Selected")}
+                                    </div>
+                                    {isBatchProcessing && (
+                                        <div className="text-[8px] text-gray-400 font-bold uppercase tracking-tighter mt-0.5">
+                                            {batchProgress.current}/{batchProgress.total}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                                {isBatchProcessing && batchType === 'download' ? (
+                                    <div className="flex items-center gap-3 px-6 py-2 bg-white/5 rounded-xl border border-white/10 ml-2 animate-pulse">
+                                        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                        <span className="text-[10px] font-black text-white uppercase tracking-widest">{t("Compacting...")}</span>
+                                    </div>
+                                ) : isBatchProcessing && batchType === 'delete' ? (
+                                    <div className="flex flex-col gap-2 min-w-[200px] px-4 animate-in fade-in duration-300">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
+                                                <span className="text-[10px] font-black text-white uppercase tracking-widest">{t("Deleting...")}</span>
+                                            </div>
+                                            <span className="text-[10px] font-black text-white/40 tracking-widest">
+                                                {Math.round((batchProgress.current / batchProgress.total) * 100)}%
+                                            </span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                                            <div
+                                                className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(239,68,68,0.3)]"
+                                                style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={handleBatchDownload}
+                                            disabled={isBatchProcessing}
+                                            title={t("Download ZIP")}
+                                            className="w-11 h-11 bg-white text-gray-900 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            onClick={handleBatchDelete}
+                                            disabled={isBatchProcessing}
+                                            title={t("Delete All")}
+                                            className="w-11 h-11 bg-red-600 text-white rounded-xl flex items-center justify-center hover:bg-red-700 transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                        <div className="w-px h-6 bg-white/10 mx-1" />
+                                        <button
+                                            onClick={() => setSelectedIds(new Set())}
+                                            disabled={isBatchProcessing}
+                                            title={t("Cancel")}
+                                            className="w-11 h-11 text-white/40 hover:text-white rounded-xl flex items-center justify-center transition-all active:scale-90 disabled:opacity-10"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
         </div>
     );
 }

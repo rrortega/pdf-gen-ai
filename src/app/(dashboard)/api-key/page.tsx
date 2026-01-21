@@ -312,9 +312,9 @@ export default function ApiKeyPage() {
                                         <div className="bg-[#2d2d30] p-4 rounded-lg border border-gray-700">
                                             <pre className="text-xs leading-relaxed text-green-400">
                                                 <code>{`{
-  "documentId": "6968...123",
+  "download_id": "6968...123",
   "status": "queue",
-  "pdfUrl": "${domain}/api/v1/documents/doc_99a8b2/download?signature=...",
+  "download_url": "${domain}/api/v1/documents/doc_99a8b2/download?signature=...",
   "name": "Invoice_#123",
   "templateId": "696810c9003666d62326"
 }`}</code>

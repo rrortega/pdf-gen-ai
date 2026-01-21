@@ -6,14 +6,14 @@ import { useI18n } from "@/hooks/useI18n";
 interface PDFPreviewProps {
     isOpen: boolean;
     onClose: () => void;
-    pdfUrl: string | null;
+    download_url: string | null;
     isLoading: boolean;
 }
 
 export default function PDFPreview({
     isOpen,
     onClose,
-    pdfUrl,
+    download_url,
     isLoading,
 }: PDFPreviewProps) {
     const { t } = useI18n();
@@ -29,9 +29,9 @@ export default function PDFPreview({
                         {t("Preview PDF")}
                     </h3>
                     <div className="flex items-center gap-2">
-                        {pdfUrl && !isLoading && (
+                        {download_url && !isLoading && (
                             <a
-                                href={pdfUrl}
+                                href={download_url}
                                 download="preview.pdf"
                                 className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-950 transition-colors text-sm"
                             >
@@ -65,9 +65,9 @@ export default function PDFPreview({
                                 <p className="text-gray-600">{t("Generating preview...")}</p>
                             </div>
                         </div>
-                    ) : pdfUrl ? (
+                    ) : download_url ? (
                         <iframe
-                            src={pdfUrl}
+                            src={download_url}
                             className="w-full h-full border-0"
                             title="PDF Preview"
                         />

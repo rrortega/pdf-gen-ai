@@ -3,12 +3,12 @@
 import { useI18n } from "@/hooks/useI18n";
 
 interface LivePreviewPanelProps {
-    pdfUrl: string | null;
+    download_url: string | null;
     isLoading: boolean;
 }
 
 export default function LivePreviewPanel({
-    pdfUrl,
+    download_url,
     isLoading,
 }: LivePreviewPanelProps) {
     const { t } = useI18n();
@@ -27,7 +27,7 @@ export default function LivePreviewPanel({
                     </div>
                 )}
 
-                {!pdfUrl && !isLoading && (
+                {!download_url && !isLoading && (
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="text-center text-gray-400">
                             <svg className="mx-auto h-16 w-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,9 +39,9 @@ export default function LivePreviewPanel({
                     </div>
                 )}
 
-                {pdfUrl && !isLoading && (
+                {download_url && !isLoading && (
                     <iframe
-                        src={pdfUrl}
+                        src={download_url}
                         className="w-full h-full"
                         title="PDF Preview"
                     />

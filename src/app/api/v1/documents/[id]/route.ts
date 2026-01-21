@@ -47,7 +47,7 @@ export async function GET(
     const secret = encoder.encode(JWT_SECRET);
     const signature = await new SignJWT({
       userId: user.id,
-      documentId: document.$id
+      download_id: document.$id
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
@@ -68,7 +68,7 @@ export async function GET(
         error_message: document.error_message,
         signature: signature
       },
-      pdfUrl: document.status === "completed" ? downloadUrl : null
+      download_url: document.status === "completed" ? downloadUrl : null
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Failed to fetch document";

@@ -24,6 +24,20 @@ export default function DashboardLayout({
     const [user, setUser] = useState<User | null>(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [showBottomNav, setShowBottomNav] = useState(true);
+
+    useEffect(() => {
+        const handleHideNav = () => setShowBottomNav(false);
+        const handleShowNav = () => setShowBottomNav(true);
+
+        window.addEventListener("hide-bottom-nav", handleHideNav);
+        window.addEventListener("show-bottom-nav", handleShowNav);
+
+        return () => {
+            window.removeEventListener("hide-bottom-nav", handleHideNav);
+            window.removeEventListener("show-bottom-nav", handleShowNav);
+        };
+    }, []);
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -330,8 +344,8 @@ export default function DashboardLayout({
             </div>
 
             {/* Mobile Bottom Navigation */}
-            {!isTemplatesNew && (
-                <div className="lg:hidden fixed bottom-0 left-0 right-0 z-10 border-t border-gray-200 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+            {!isTemplatesNew && showBottomNav && (
+                <div className="lg:hidden fixed bottom-0 left-0 right-0 z-10 border-t border-gray-200 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] animate-in slide-in-from-bottom duration-300">
                     <nav className="flex justify-around items-center h-16">
                         {navigation.map((item) => {
                             const isActive = pathname === item.href;

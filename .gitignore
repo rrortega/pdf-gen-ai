@@ -46,3 +46,4 @@ next-env.d.ts
 # Cachesbrew install git-filter-repo
 .cache/
 node_modules/
+.agent/

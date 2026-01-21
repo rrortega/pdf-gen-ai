@@ -42,7 +42,7 @@ AI-powered PDF generation platform with template management, OAuth 2.0 authentic
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd pdf4ia
+cd pdf-gen-ai
 
 # Install dependencies
 npm install
@@ -68,6 +68,10 @@ NEXT_PUBLIC_DOCUMENTS_COLLECTION_ID=documents
 NEXT_PUBLIC_API_KEYS_COLLECTION_ID=api_keys
 OAUTH_CODES_COLLECTION_ID=oauth_codes
 OAUTH_TOKENS_COLLECTION_ID=oauth_tokens
+
+# generation mode
+PDF_GENERATION_MODE=sync #sync or queue (queue use appwrite functions)
+PDF_GENERATION_TIMEOUT=30
 
 # Storage
 NEXT_PUBLIC_DOCUMENTS_BUCKET_ID=documents
@@ -238,7 +242,7 @@ claude mcp add pdfgenai https://your-domain.com/api/llm/mcp \
 ## Project Structure
 
 ```
-pdf4ia/
+pdf-gen-ai/
 ├── src/
 │   ├── app/
 │   │   ├── (dashboard)/        # Dashboard pages

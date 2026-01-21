@@ -6,12 +6,12 @@
     "type": "module",
     "dependencies": {
         "node-appwrite": "^14.0.0",
-        "puppeteer-core": "^23.0.0",
-        "@sparticuz/chromium": "^130.0.0",
+        "puppeteer-core": "22.6.0",
+        "@sparticuz/chromium": "123.0.0",
         "handlebars": "^4.7.8",
         "jose": "^5.0.0"
     },
     "engines": {
-        "node": ">=18.0.0"
+        "node": ">=20.0.0"
     }
 }

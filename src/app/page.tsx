@@ -14,6 +14,7 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isAsync, setIsAsync] = useState(false);
+  const domain = process.env.NEXT_PUBLIC_DOMAIN || "https://pdfgen.ai";
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -218,7 +219,7 @@ export default function Home() {
               </div>
             </div>
             <div
-              className="relative group h-[450px] select-none"
+              className="relative group h-[480px] select-none"
               onMouseMove={(e) => {
                 if (!isDragging) return;
                 const rect = e.currentTarget.getBoundingClientRect();
@@ -241,23 +242,24 @@ export default function Home() {
                   <span className="text-[10px] font-bold text-blue-500/50 uppercase tracking-widest">{t("Response")}</span>
                 </div>
                 <pre className="text-emerald-400">
-                  <code>{isAsync ? `{
-  "success": true,
-  "request_id": "req_88f2a1",
-  "status": "queued",
-  "message": "Generation started in the background. You will be notified via webhook."
-}` : `{
-  "success": true,
-  "document": {
-    "id": "doc_99a8b2",
-    "name": "invoice-2026",
-    "template_id": "inv-4452",
-    "size": 104523,
-    "status": "completed",
-    "signature": "eyJhbGciOiJIUzI1NiIsInR5cCI..."
-  },
-  "pdfUrl": "https://api.pdfgenai.com/api/v1/documents/doc_99a8b2/download?signature=..."
-}`}</code>
+                  <code><br /><br />{isAsync ? `  {
+    "success": true,
+    "status": "queued",
+    "documentId": "6970e8720004cd2b4329",
+    "message": "Document generation enqueued. You will be notified via webhook." 
+  }
+  ` : `  {
+    "success": true,
+    "document": {
+      "id": "doc_99a8b2",
+      "name": "invoice-2026",
+      "template_id": "inv-4452",
+      "size": 104523,
+      "status": "completed",
+      "signature": "eyJhbGciOiJIUzI1NiIsInR5cCI..."
+    },
+    "pdfUrl": "https://${domain}/api/v1/documents/doc_99a8b2/download?signature=..."
+  }`} {isAsync && (<span className="text-red-300 font-black italic">/**<br />     Check the document status by GET to<br />     {domain}/api/v1/documents/6970e8720004cd2b4329<br />   */</span>)}</code>
                 </pre>
               </div>
 
@@ -275,8 +277,9 @@ export default function Home() {
                   <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">{t("Request")}</span>
                 </div>
                 <pre className="text-blue-400">
-                  <code>{`// Generate PDF via API (${isAsync ? 'Asynchronous' : 'Synchronous'})
-fetch('${process.env.NEXT_PUBLIC_DOMAIN || 'https://api.pdfgenai.com'}/api/v1/generate', {
+                  <code><span className="text-red-300 font-black italic">/* Generate PDF via API ({isAsync ? 'Asynchronous' : 'Synchronous'}) */</span><br />
+                    {`
+fetch('${domain}/api/v1/generate', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer YOUR_API_KEY',

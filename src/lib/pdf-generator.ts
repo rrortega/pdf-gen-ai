@@ -1,8 +1,10 @@
-import puppeteer, { Browser, PaperFormat } from "puppeteer";
+import chromium from "@sparticuz/chromium";
+import puppeteer, { Browser, PaperFormat } from "puppeteer-core";
 import Handlebars from "handlebars";
 import { getServerAppwriteStorage, BUCKETS, ID } from "./appwrite";
 import { InputFile } from "node-appwrite/file";
 import { registerHbsHelpers, registerHbsPartials } from "./hbs";
+import fs from "fs";
 
 export class PDFGenerator {
   private static browser: Browser | null = null;
@@ -14,90 +16,54 @@ export class PDFGenerator {
         this.browser = null;
       }
 
-      const executablePath = await this.findChromium();
-      console.log(`[PDFGenerator] launching browser with executablePath: ${executablePath || "default"}`);
+      const isProd = process.env.NODE_ENV === "production";
+      let executablePath: string | null = null;
 
-      this.browser = await puppeteer.launch({
-        headless: true,
-        executablePath: executablePath || undefined,
-        args: [
+      // 1. Priority: Environment Variable
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        console.log(`[PDFGenerator] Using browser from environment variable: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
+        executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      }
+      // 2. Production: Use @sparticuz/chromium
+      else if (isProd) {
+        console.log("[PDFGenerator] launching browser with @sparticuz/chromium (production)");
+        executablePath = await chromium.executablePath();
+      }
+      // 3. Development: Search for local installations
+      else {
+        console.log("[PDFGenerator] launching browser in development mode");
+        const localPaths = [
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "/Applications/Chromium.app/Contents/MacOS/Chromium",
+          "/usr/bin/google-chrome",
+          "/usr/bin/google-chrome-stable",
+          "/usr/bin/chromium",
+          "/usr/bin/chromium-browser"
+        ];
+
+        for (const path of localPaths) {
+          if (fs.existsSync(path)) {
+            executablePath = path;
+            break;
+          }
+        }
+      }
+
+      if (!executablePath && !isProd) {
+        console.warn("[PDFGenerator] No Chrome/Chromium executable found in common local paths. Puppeteer may fail.");
+      }
+
+      this.browser = (await puppeteer.launch({
+        args: isProd ? chromium.args : [
           "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-accelerated-2d-canvas",
-          "--no-first-run",
-          "--no-zygote",
-          "--single-process", // <- Essential for Appwrite / Containers
-          "--disable-gpu",
-          "--font-render-hinting=none",
-          "--disable-extensions",
-          "--disable-web-security",
+          "--disable-setuid-sandbox"
         ],
-      });
+        defaultViewport: isProd ? chromium.defaultViewport : { width: 1280, height: 720 },
+        executablePath: executablePath || undefined,
+        headless: isProd ? chromium.headless : true,
+      })) as unknown as Browser;
     }
     return this.browser;
-  }
-
-  /**
-   * Tries several common locations to find the chrome executable in production
-   */
-  private static async findChromium(): Promise<string | null> {
-    const { existsSync, lstatSync, readdirSync } = await import("fs");
-    const { join } = await import("path");
-
-    const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
-    if (envPath && existsSync(envPath)) return envPath;
-
-    // Search in the local project cache first (where postinstall puts it)
-    const localCachePath = join(process.cwd(), ".cache", "puppeteer");
-    const searchPaths = [
-      localCachePath,
-      "/usr/local/build/.cache/puppeteer", // Path seen in the logs
-      join(process.cwd(), "node_modules", "puppeteer", ".local-chromium"),
-      "/usr/bin/google-chrome",
-      "/usr/bin/google-chrome-stable",
-      "/usr/bin/chromium",
-      "/usr/bin/chromium-browser",
-    ];
-
-    console.log(`[PDFGenerator] Searching for Chromium in ${searchPaths.length} locations. cwd: ${process.cwd()}`);
-
-    for (const basePath of searchPaths) {
-      if (!existsSync(basePath)) continue;
-
-      try {
-        if (lstatSync(basePath).isFile()) return basePath;
-
-        // Recursively find the actual binary inside directories (Puppeteer cache structure)
-        const findBinary = (dir: string): string | null => {
-          try {
-            const files = readdirSync(dir);
-            for (const file of files) {
-              const fullPath = join(dir, file);
-              const stat = lstatSync(fullPath);
-              if (file === "chrome" || file === "chromium") {
-                if (stat.isFile()) return fullPath;
-              }
-              if (stat.isDirectory()) {
-                const found = findBinary(fullPath);
-                if (found) return found;
-              }
-            }
-          } catch { /* ignore */ }
-          return null;
-        };
-
-        const found = findBinary(basePath);
-        if (found) {
-          console.log(`[PDFGenerator] Found binary at: ${found}`);
-          return found;
-        }
-      } catch (e) {
-        console.warn(`[PDFGenerator] Error searching in ${basePath}:`, e);
-      }
-    }
-
-    return null;
   }
 
   static async generatePDF(
@@ -121,27 +87,21 @@ export class PDFGenerator {
       const browser = await this.getBrowser();
       page = await browser.newPage();
 
-      // Ensure helpers and partials are registered
       registerHbsHelpers();
       registerHbsPartials();
 
-      // Compile template with Handlebars
       const template = Handlebars.compile(templateHtml);
       const html = template(data);
 
-      // Create full HTML with CSS (compact to avoid whitespace issues)
       const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${html}</body></html>`;
 
-      // Emulate print media to apply @media print styles
       await page.emulateMediaType("print");
 
-      // Use networkidle2 to allow external assets (JS/Fonts/CSS) to load
       await page.setContent(fullHtml, {
         waitUntil: ["load", "domcontentloaded", "networkidle2"],
         timeout: 45000
       });
 
-      // Wait for fonts to be specifically ready
       try {
         await page.evaluateHandle("document.fonts.ready");
       } catch {
@@ -161,14 +121,12 @@ export class PDFGenerator {
       });
 
       await page.close();
-
       return Buffer.from(pdfBuffer);
     } catch (error) {
       if (page) {
         try { await page.close(); } catch { /* ignore */ }
       }
 
-      // If connection closed or frame detached, and we haven't retried yet, try one more time
       const errorMessage = error instanceof Error ? error.message : String(error);
       const shouldRetry = (
         errorMessage.includes("Connection closed") ||
@@ -178,7 +136,7 @@ export class PDFGenerator {
 
       if (shouldRetry) {
         console.warn(`Puppeteer error: ${errorMessage}. Retrying PDF generation (${retryCount + 1})...`);
-        this.browser = null; // Force relaunch
+        this.browser = null;
         return this.generatePDF(templateHtml, css, data, options, retryCount + 1);
       }
 
@@ -204,10 +162,8 @@ export class PDFGenerator {
     },
   ): Promise<{ fileId: string; fileUrl: string; size: number }> {
     const pdfBuffer = await this.generatePDF(templateHtml, css, data, options);
-
     const storage = getServerAppwriteStorage();
 
-    // Upload PDF to storage
     const file = await storage.createFile({
       bucketId: BUCKETS.PDFS,
       fileId: ID.unique(),
@@ -215,15 +171,14 @@ export class PDFGenerator {
       permissions: [],
     });
 
-    // Get file view URL
     const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
     const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
     const fileUrl = `${endpoint}/storage/buckets/${BUCKETS.PDFS}/files/${file.$id}/view?project=${projectId}`;
 
     return {
       fileId: file.$id,
-      fileUrl: fileUrl.toString(),
-      size: Math.round(pdfBuffer.length / 1024), // Size in KB
+      fileUrl: fileUrl,
+      size: Math.round(pdfBuffer.length / 1024),
     };
   }
 

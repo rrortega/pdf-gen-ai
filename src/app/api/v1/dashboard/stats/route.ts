@@ -31,14 +31,24 @@ export async function GET(request: NextRequest) {
         });
 
         const documents = documentsResponse.rows || [];
-        const documentsCount = documents.length;
+        const documentsCount = documentsResponse.total || documents.length;
 
-        // Calculate total storage (sum of all document sizes)
-        const totalStorage = documents.reduce((sum, doc) => sum + (doc.size || 0), 0);
+        // Calculate total storage and total transferred data
+        // totalStorage: sum of unique file sizes (KB)
+        // totalTransferred: sum of (size * downloads) (KB)
+        let totalStorage = 0;
+        let totalTransferred = 0;
+
+        documents.forEach(doc => {
+            const size = doc.size || 0;
+            const downloads = doc.downloads || 0;
+            totalStorage += size;
+            totalTransferred += (size * downloads);
+        });
 
         // Get recent 10 documents with template info
         const recentDocuments = await Promise.all(
-            documents.slice(0, 10).map(async (doc) => {
+            documents.slice(0, 5).map(async (doc) => {
                 try {
                     const template = await tables.getRow({
                         databaseId: DATABASE_ID,
@@ -119,6 +129,7 @@ export async function GET(request: NextRequest) {
                 templatesCount,
                 documentsCount,
                 totalStorage, // in KB
+                totalTransferred, // in KB
                 periodDays,
             },
             activityData,

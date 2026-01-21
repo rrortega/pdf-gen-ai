@@ -1,43 +1,75 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useI18n } from "@/hooks/useI18n";
-import { getAppwriteClientSafe } from "@/lib/appwrite-client";
+import { getAppwriteClientSafe, Account } from "@/lib/appwrite-client";
 
 interface Document {
     $id: string;
     name: string;
     template_id: string;
+    user_id: string;
     status: string;
     pdf_file: string;
     size?: number;
     downloads?: number;
     error_message?: string;
     $createdAt: string;
+    signature?: string;
 }
+
+const ITEMS_PER_PAGE = 10;
 
 export default function DocumentsPage() {
     const { t } = useI18n();
     const [documents, setDocuments] = useState<Document[]>([]);
+    const [total, setTotal] = useState(0);
+    const [currentPage, setCurrentPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [isDeleting, setIsDeleting] = useState(false);
     const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
-    const [actionLoading, setActionLoading] = useState(false);
 
-    const fetchDocuments = useCallback(async () => {
+    // Track documents being deleted for UX effects
+    const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+    // Track documents that should be animated out before removal
+    const [animatingOutIds, setAnimatingOutIds] = useState<Set<string>>(new Set());
+
+    // Toast state
+    const [showNewDocToast, setShowNewDocToast] = useState(false);
+
+    const [jwtReady, setJwtReady] = useState(false);
+
+    // Refs to store current state to use in realtime callback without dependency cycles or stale closures
+    const pageRef = useRef(currentPage);
+    const userIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        pageRef.current = currentPage;
+    }, [currentPage]);
+
+    useEffect(() => {
+        userIdRef.current = currentUserId;
+    }, [currentUserId]);
+
+    const fetchDocuments = useCallback(async (page: number) => {
         try {
             setLoading(true);
             setError(null);
-            const response = await fetch("/api/v1/documents");
+            const response = await fetch(`/api/v1/documents?page=${page}&limit=${ITEMS_PER_PAGE}`);
 
             if (!response.ok) {
                 throw new Error("Failed to fetch documents");
             }
 
             const data = await response.json();
-            setDocuments(data.documents || []);
+            const sortedDocs = (data.documents || []).sort((a: Document, b: Document) =>
+                new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime()
+            );
+            setDocuments(sortedDocs);
+            setTotal(data.total || 0);
         } catch (err) {
             setError("Failed to load documents");
             console.error("Error fetching documents:", err);
@@ -47,64 +79,137 @@ export default function DocumentsPage() {
     }, []);
 
     useEffect(() => {
-        fetchDocuments();
-    }, [fetchDocuments]);
+        const init = async () => {
+            // Fetch current user and JWT from BFF
+            try {
+                const response = await fetch("/api/v1/auth/me");
+                const data = await response.json();
+
+                if (data.success) {
+                    setCurrentUserId(data.user.id);
+                    if (data.jwt) {
+                        const client = getAppwriteClientSafe();
+                        client.setJWT(data.jwt);
+                        console.log('[REALTIME] JWT set successfully. User ID from BFF:', data.user.id);
+
+                        // Verify SDK authentication
+                        const account = new Account(client);
+                        account.get().then((u) => {
+                            console.log('[REALTIME] SDK verify success. Logged in as:', u.$id);
+                            setJwtReady(true);
+                        }).catch((e) => {
+                            console.error('[REALTIME] SDK verify failed. Realtime might connect as Guest:', e);
+                            setJwtReady(true); // Still set ready to try guest connection if Role.any is set
+                        });
+                    }
+                } else {
+                    console.warn("User not authenticated in BFF");
+                }
+            } catch (err) {
+                console.error("Failed to get user from BFF:", err);
+            }
+            fetchDocuments(currentPage);
+        };
+        init();
+    }, [currentPage, fetchDocuments]);
 
     // Realtime subscription
     useEffect(() => {
-        const setupRealtime = async () => {
-            try {
-                // Get session from cookie
-                const sessionCookie = document.cookie
-                    .split('; ')
-                    .find(row => row.startsWith('session='))
-                    ?.split('=')[1];
+        const unsubscribers: (() => void)[] = [];
 
-                if (!sessionCookie) {
-                    console.warn('No session found for realtime subscription');
+        const setupRealtime = async () => {
+            if (!jwtReady) {
+                console.log('[REALTIME] Waiting for JWT to be ready before subscribing...');
+                return;
+            }
+            console.log('[REALTIME] Initializing...');
+            try {
+                const client = getAppwriteClientSafe();
+                // We don't need manual setSession from document.cookie in the browser
+                // The SDK handles cookies automatically if they are present.
+                // If it's a JWT, it should be handled differently, but for session cookies this is enough.
+
+                const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || "6968108e00298587f520";
+                const collectionId = process.env.NEXT_PUBLIC_APPWRITE_DOCUMENTS_COLLECTION_ID || "documents";
+
+                if (!databaseId || !collectionId) {
+                    console.error('[REALTIME] Missing databaseId or collectionId', { databaseId, collectionId });
                     return;
                 }
 
-                const client = getAppwriteClientSafe();
-                client.setSession(sessionCookie);
+                const channel = `databases.${databaseId}.collections.${collectionId}.documents`;
+                console.log(`[REALTIME] Subscribing to channel: ${channel}`);
 
-                const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'default';
-                const unsubscribe = client.subscribe(
-                    `databases.${databaseId}.collections.documents.documents`,
-                    (response) => {
-                        console.log('Realtime event received:', response);
+                const unsubConcrete = client.subscribe(
+                    channel,
+                    (response: { events: string[], payload: Document }) => {
                         const event = response.events[0];
                         const payload = response.payload as Document;
 
+                        // Filter by user_id to only react to current user's documents
+                        if (userIdRef.current && payload.user_id !== userIdRef.current) {
+                            return;
+                        }
+
                         if (event?.includes('.create')) {
-                            setDocuments(prev => [payload, ...prev]);
+                            if (pageRef.current === 1) {
+                                setDocuments(prev => {
+                                    if (prev.find(d => d.$id === payload.$id)) return prev;
+                                    const newDocs = [payload, ...prev].sort((a, b) =>
+                                        new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime()
+                                    );
+                                    return newDocs.slice(0, ITEMS_PER_PAGE);
+                                });
+                            } else {
+                                setShowNewDocToast(true);
+                            }
+                            setTotal(prev => prev + 1);
                         } else if (event?.includes('.update')) {
                             setDocuments(prev => prev.map(doc =>
-                                doc.$id === payload.$id ? payload : doc
+                                doc.$id === payload.$id ? { ...doc, ...payload } : doc
                             ));
                         } else if (event?.includes('.delete')) {
-                            setDocuments(prev => prev.filter(doc => doc.$id !== payload.$id));
+                            // Start removal animation
+                            setAnimatingOutIds(prev => new Set(prev).add(payload.$id));
+
+                            // Delay actual removal for animation to finish
+                            setTimeout(() => {
+                                setDocuments(prev => prev.filter(doc => doc.$id !== payload.$id));
+                                setAnimatingOutIds(prev => {
+                                    const next = new Set(prev);
+                                    next.delete(payload.$id);
+                                    return next;
+                                });
+                                setDeletingIds(prev => {
+                                    const next = new Set(prev);
+                                    next.delete(payload.$id);
+                                    return next;
+                                });
+                                setTotal(prev => Math.max(0, prev - 1));
+                            }, 500); // Animation duration
                         }
                     }
                 );
-
-                return unsubscribe;
-            } catch (error) {
+                unsubscribers.push(unsubConcrete);
+            } catch (error: unknown) {
                 console.error('Error setting up realtime:', error);
             }
         };
 
-        let unsubscribe: (() => void) | undefined;
-        setupRealtime().then(unsub => {
-            unsubscribe = unsub;
-        });
+        setupRealtime();
 
         return () => {
-            if (unsubscribe) {
-                unsubscribe();
-            }
+            unsubscribers.forEach(unsub => unsub());
         };
-    }, []);
+    }, [currentUserId, jwtReady]);
+
+    const handleGoToFirstPage = () => {
+        setCurrentPage(1);
+        setShowNewDocToast(false);
+        fetchDocuments(1);
+    };
+
+    const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
     const filteredDocuments = documents.filter((doc) =>
         doc.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -117,23 +222,54 @@ export default function DocumentsPage() {
     const handleDelete = async () => {
         if (!documentToDelete) return;
 
+        const id = documentToDelete;
+        // Close modal immediately as requested
+        setIsDeleting(false);
+        setDocumentToDelete(null);
+
+        // Add to deleting state
+        setDeletingIds(prev => new Set(prev).add(id));
+
         try {
-            setActionLoading(true);
-            const res = await fetch(`/api/v1/documents/${documentToDelete}`, {
+            const res = await fetch(`/api/v1/documents/${id}`, {
                 method: "DELETE",
             });
             if (res.ok) {
-                setDocuments(prev => prev.filter(d => d.$id !== documentToDelete));
-                setIsDeleting(false);
-                setDocumentToDelete(null);
+                // Trigger animation immediately for snappy UX
+                setAnimatingOutIds(prev => new Set(prev).add(id));
+
+                // Delay removal from state to allow animation to finish
+                setTimeout(() => {
+                    setDocuments(prev => prev.filter(doc => doc.$id !== id));
+                    setAnimatingOutIds(prev => {
+                        const next = new Set(prev);
+                        next.delete(id);
+                        return next;
+                    });
+                    setDeletingIds(prev => {
+                        const next = new Set(prev);
+                        next.delete(id);
+                        return next;
+                    });
+                    setTotal(prev => Math.max(0, prev - 1));
+                }, 500);
             } else {
+                // If it fails, remove from deleting state and show error
+                setDeletingIds(prev => {
+                    const next = new Set(prev);
+                    next.delete(id);
+                    return next;
+                });
                 alert(t("Failed to delete document"));
             }
-        } catch (err) {
-            console.error("Delete error:", err);
+        } catch (error: unknown) {
+            console.error("Delete error:", error);
+            setDeletingIds(prev => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
             alert(t("An error occurred"));
-        } finally {
-            setActionLoading(false);
         }
     };
 
@@ -143,34 +279,68 @@ export default function DocumentsPage() {
     };
 
     const handleDownload = (doc: Document) => {
-        // Implement download logic - usually redirecting to a proxy or direct file URL
-        window.open(`/api/v1/documents/${doc.$id}/download`, "_blank");
+        const domain = process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL || "";
+        const url = `${domain}/api/v1/documents/${doc.$id}/download${doc.signature ? `?signature=${doc.signature}` : ''}`;
+        window.open(url, "_blank");
     };
 
-    if (loading) {
+    if (loading && documents.length === 0) {
         return (
-            <div className="flex min-h-screen items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                <div className="ml-3 text-lg text-gray-600">{t("Loading...")}</div>
+            <div className="flex min-h-screen items-center justify-center bg-gray-50">
+                <div className="flex flex-col items-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mb-4"></div>
+                    <div className="text-lg font-medium text-gray-600">{t("Loading documents...")}</div>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="max-w-7xl mx-auto">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-6">
-                        {t("My Documents")}
-                    </h1>
+        <div className="min-h-screen bg-gray-50 p-6 relative overflow-x-hidden">
+            {/* New Document Toast */}
+            {showNewDocToast && (
+                <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[60] animate-in slide-in-from-top-4 duration-300">
+                    <div className="bg-gray-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-white/10 backdrop-blur-md">
+                        <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                            <span className="text-sm font-bold">{t("New document generated!")}</span>
+                        </div>
+                        <button
+                            onClick={handleGoToFirstPage}
+                            className="bg-white text-gray-900 px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-gray-100 transition-colors"
+                        >
+                            {t("View First")}
+                        </button>
+                        <button
+                            onClick={() => setShowNewDocToast(false)}
+                            className="text-gray-400 hover:text-white transition-colors"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
 
-                    <div className="relative">
+            <div className="max-w-7xl mx-auto">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900">
+                            {t("My Documents")}
+                        </h1>
+                        <p className="text-gray-500 mt-1">
+                            {total} {t("documents in total")}
+                        </p>
+                    </div>
+
+                    <div className="relative w-full md:w-96">
                         <input
                             type="text"
                             placeholder={t("Search documents...")}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none text-gray-900 shadow-sm"
+                            className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900 outline-none text-gray-900 shadow-sm bg-white"
                         />
                         <svg
                             className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
@@ -184,122 +354,183 @@ export default function DocumentsPage() {
                 </div>
 
                 {error && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                         {error}
                     </div>
                 )}
 
                 {filteredDocuments.length === 0 ? (
-                    <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-300">
-                        <svg className="mx-auto h-12 w-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <h3 className="text-lg font-medium text-gray-900">{t("No documents found")}</h3>
-                        <p className="text-gray-500">{t("Your generated PDFs will appear here.")}</p>
+                    <div className="text-center py-24 bg-white rounded-2xl border border-dashed border-gray-300 shadow-sm">
+                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg className="h-8 w-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-1">{t("No documents found")}</h3>
+                        <p className="text-gray-500">{t("Your generated PDFs will appear here in real-time.")}</p>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-3">
-                        {filteredDocuments.map((doc) => (
-                            <div
-                                key={doc.$id}
-                                className="bg-white rounded-xl shadow-md border border-gray-200 p-4 hover:shadow-md hover:border-gray-900 transition-all flex flex-col md:flex-row md:items-center justify-between group"
-                            >
-                                <div className="flex items-center gap-4 min-w-0 flex-1">
-                                    <div className="p-3 bg-gray-50 text-gray-900 rounded-lg group-hover:bg-gray-900 group-hover:text-white transition-colors">
-                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                        </svg>
-                                    </div>
-                                    <div className="min-w-0">
-                                        <h3 className="text-lg font-semibold text-gray-900 truncate">
-                                            {doc.name}
-                                        </h3>
-                                        <div className="flex items-center gap-4 mt-0.5">
-                                            <span className="text-xs text-gray-500 font-mono">ID: {doc.$id}</span>
-                                            <span className="text-xs text-gray-400">{formatDate(doc.$createdAt)}</span>
-                                            {doc.size !== undefined && (
-                                                <span className="text-xs text-gray-500 font-medium">{doc.size} KB</span>
+                    <>
+                        <div className="grid grid-cols-1 gap-4">
+                            {filteredDocuments.map((doc) => {
+                                const isDeletingNow = deletingIds.has(doc.$id);
+                                const isExploding = animatingOutIds.has(doc.$id);
+
+                                return (
+                                    <div
+                                        key={doc.$id}
+                                        className={`bg-white rounded-2xl shadow-sm border border-gray-200 p-5 transition-all duration-500 flex flex-col md:flex-row md:items-center justify-between group gap-4 relative overflow-hidden ${isExploding ? 'scale-0 opacity-0 blur-xl rotate-12' :
+                                            isDeletingNow ? 'opacity-60 bg-gray-50' : 'hover:shadow-md hover:border-gray-900 cursor-default'
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-5 min-w-0 flex-1">
+                                            <div className={`p-4 bg-gray-50 text-gray-900 rounded-xl transition-all duration-300 shadow-sm ${isDeletingNow ? 'grayscale opacity-30' : 'group-hover:bg-gray-900 group-hover:text-white'}`}>
+                                                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                </svg>
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className={`text-xl font-bold text-gray-900 truncate transition-all duration-300 ${isDeletingNow ? 'line-through text-gray-400' : ''}`}>
+                                                        {doc.name}
+                                                    </h3>
+                                                    {!isDeletingNow && (
+                                                        <span
+                                                            className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider ${doc.status === 'completed' ? 'bg-green-100 text-green-700 border border-green-200' :
+                                                                doc.status === 'failed' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-amber-100 text-amber-700 border border-amber-200 animate-pulse'
+                                                                }`}
+                                                            title={doc.status === 'failed' && doc.error_message ? doc.error_message : undefined}
+                                                        >
+                                                            {t(doc.status)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                                                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                        </svg>
+                                                        {formatDate(doc.$createdAt)}
+                                                    </div>
+                                                    {doc.size !== undefined && doc.size > 0 && !isDeletingNow && (
+                                                        <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                                            </svg>
+                                                            {doc.size} KB
+                                                        </div>
+                                                    )}
+                                                    {doc.downloads !== undefined && !isDeletingNow && (
+                                                        <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                            </svg>
+                                                            {doc.downloads} {t("views")}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 self-end md:self-center h-10">
+                                            {isDeletingNow ? (
+                                                <div className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold text-xs border border-red-100 animate-pulse">
+                                                    <div className="w-3 h-3 border-2 border-red-200 border-t-red-600 rounded-full animate-spin"></div>
+                                                    {t("Deleting...")}
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleDownload(doc)}
+                                                        disabled={doc.status !== 'completed'}
+                                                        className="px-4 py-2 text-sm font-bold text-gray-900 border-2 border-gray-100 hover:border-gray-900 hover:bg-gray-900 hover:text-white rounded-xl transition-all flex items-center gap-2 disabled:opacity-20 disabled:cursor-not-allowed disabled:border-gray-100 shadow-sm"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                        </svg>
+                                                        {t("Download")}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => confirmDelete(doc.$id)}
+                                                        className="p-2.5 text-gray-400 border-2 border-transparent hover:text-red-600 hover:bg-red-50 hover:border-red-100 rounded-xl transition-all transform hover:scale-110 active:scale-95"
+                                                        title={t("Delete")}
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </>
                                             )}
-                                            {doc.downloads !== undefined && (
-                                                <span className="flex items-center gap-1 text-xs text-gray-500">
-                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                                    </svg>
-                                                    {doc.downloads}
-                                                </span>
-                                            )}
-                                            <span
-                                                className={`text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase cursor-help ${doc.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                                    doc.status === 'failed' ? 'bg-red-100 text-red-700 border' : 'bg-amber-100 border text-amber-700'
-                                                    }`}
-                                                title={doc.status === 'failed' && doc.error_message ? doc.error_message : undefined}
-                                            >
-                                                {t(doc.status)}
-                                            </span>
                                         </div>
                                     </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Pagination UI */}
+                        {totalPages > 1 && (
+                            <div className="mt-10 flex items-center justify-center gap-2 mb-20 md:mb-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1 || loading}
+                                    className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 hover:border-gray-900 hover:text-gray-900 disabled:opacity-30 transition-all font-bold disabled:cursor-not-allowed shadow-sm"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                </button>
+
+                                <div className="flex items-center gap-1.5 px-4 h-10 bg-white rounded-xl border border-gray-200 shadow-sm mx-2">
+                                    <span className="text-sm font-black text-gray-900">{currentPage}</span>
+                                    <span className="text-xs text-gray-400 font-bold uppercase tracking-tighter">/ {totalPages}</span>
                                 </div>
 
-                                <div className="flex items-center gap-2 ml-4">
-                                    <button
-                                        onClick={() => handleDownload(doc)}
-                                        disabled={doc.status !== 'completed'}
-                                        className="p-2 text-gray-600 border hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                        title={t("Download")}
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        onClick={() => confirmDelete(doc.$id)}
-                                        className="p-2 text-gray-400 border hover:text-red-600 hover:bg-red-50 rounded-lg transition-all transform hover:scale-110 active:scale-95"
-                                        title={t("Delete")}
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
-                                </div>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages || loading}
+                                    className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 hover:border-gray-900 hover:text-gray-900 disabled:opacity-30 transition-all font-bold disabled:cursor-not-allowed shadow-sm"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </button>
                             </div>
-                        ))}
-                    </div>
+                        )}
+                    </>
                 )}
             </div>
 
             {/* Confirmation Modal */}
             {isDeleting && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
-                            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full p-8 transform animate-in zoom-in-95 duration-300 border border-gray-100">
+                        <div className="flex items-center justify-center w-20 h-20 mx-auto bg-red-50 rounded-full mb-6 border-4 border-white shadow-inner">
+                            <svg className="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>
                         </div>
-                        <h3 className="text-xl font-bold text-center text-gray-900 mb-2">
+                        <h3 className="text-2xl font-black text-center text-gray-900 mb-3">
                             {t("Delete Document")}
                         </h3>
-                        <p className="text-center text-gray-500 mb-6">
+                        <p className="text-center text-gray-500 mb-8 leading-relaxed">
                             {t("Are you sure you want to delete this document? This action cannot be undone and will also remove the file from storage.")}
                         </p>
-                        <div className="flex gap-3">
+                        <div className="flex gap-4">
                             <button
                                 onClick={() => setIsDeleting(false)}
-                                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors"
-                                disabled={actionLoading}
+                                className="flex-1 px-6 py-3.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-2xl font-black transition-all"
                             >
                                 {t("Cancel")}
                             </button>
                             <button
                                 onClick={handleDelete}
-                                className="flex-1 px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-xl font-medium transition-all shadow-lg shadow-red-200 flex items-center justify-center disabled:opacity-50"
-                                disabled={actionLoading}
+                                className="flex-1 px-6 py-3.5 text-white bg-red-600 hover:bg-red-700 rounded-2xl font-black transition-all shadow-xl shadow-red-200 flex items-center justify-center"
                             >
-                                {actionLoading ? (
-                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                ) : (
-                                    t("Delete")
-                                )}
+                                {t("Delete")}
                             </button>
                         </div>
                     </div>

@@ -262,5 +262,13 @@
     "Do I need to manage servers for PDF generation?": "¿Necesito gestionar servidores para la generación de PDF?",
     "No, PDFGenAI is fully managed. We handle the browser clusters, scaling, and storage so you can focus on your data and design.": "No, PDFGenAI es totalmente gestionado. Nosotros manejamos los clusters de navegadores, el escalado y el almacenamiento para que puedas enfocarte en tus datos y diseño.",
     "Can I use custom fonts and external CSS?": "¿Puedo usar fuentes personalizadas y CSS externo?",
-    "Yes, our engine supports Google Fonts, external CSS files, and even JavaScript execution to ensure your PDFs look exactly like your web designs.": "Sí, nuestro motor soporta Google Fonts, archivos CSS externos e incluso ejecución de JavaScript para asegurar que tus PDFs se vean exactamente como tus diseños web."
+    "Yes, our engine supports Google Fonts, external CSS files, and even JavaScript execution to ensure your PDFs look exactly like your web designs.": "Sí, nuestro motor soporta Google Fonts, archivos CSS externos e incluso ejecución de JavaScript para asegurar que tus PDFs se vean exactamente como tus diseños web.",
+    "New document generated!": "¡Nuevo documento generado!",
+    "View First": "Ver primero",
+    "documents in total": "documentos en total",
+    "views": "vistas",
+    "Loading documents...": "Cargando documentos...",
+    "queued": "En cola",
+    "Your generated PDFs will appear here in real-time.": "Tus documentos PDF generados aparecerán aquí en tiempo real.",
+    "Deleting...": "Eliminando..."
 }

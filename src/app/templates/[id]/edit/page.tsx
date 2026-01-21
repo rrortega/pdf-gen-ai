@@ -114,11 +114,11 @@ export default function EditTemplatePage() {
 
             // Switch to CSS
             setActiveTab(1);
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 200));
 
             // Switch to DATA
             setActiveTab(2);
-            await new Promise(resolve => setTimeout(resolve, 250));
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             // Finish initialization
             setIsInitializing(false);

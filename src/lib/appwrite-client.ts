@@ -2,7 +2,6 @@ import {
     Client,
     Account,
     Databases,
-    Storage,
     Permission,
     Role,
     ID,
@@ -20,11 +19,16 @@ export const getAppwriteClient = (sessionSecret?: string) => {
     return client;
 };
 
+let clientSideClient: Client | null = null;
+
 // Client-safe version without cookies (for use in client components)
 export const getAppwriteClientSafe = () => {
-    return new Client()
-        .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1")
-        .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
+    if (!clientSideClient) {
+        clientSideClient = new Client()
+            .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1")
+            .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
+    }
+    return clientSideClient;
 };
 
-export { Permission, Role, ID };
+export { Account, Databases, Permission, Role, ID };

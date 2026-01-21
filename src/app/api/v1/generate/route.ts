@@ -4,18 +4,16 @@ import {
     COLLECTIONS,
 } from "@/lib/appwrite";
 import { PDFGenerator } from "@/lib/pdf-generator";
-import { ID } from "node-appwrite";
+import { ID, Permission, Role } from "node-appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
 import { SignJWT } from "jose";
 
-
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-me";
 const encoder = new TextEncoder();
+
 /**
  * Generate PDF from template
  * POST /api/v1/generate
- * 
- * Supports both OAuth tokens and API keys (via getAuthenticatedDatabases)
  */
 export async function POST(request: NextRequest) {
     try {
@@ -25,8 +23,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { tables, user } = auth;
-
-        const { template_id, name, data, webhook_callback } = await request.json();
+        const { template_id, name, data: inputData, webhook_callback } = await request.json();
 
         if (!template_id || !name) {
             return NextResponse.json(
@@ -46,150 +43,209 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Template not found" }, { status: 404 });
         }
 
-        // Check if template belongs to current user
         if (template.user_id !== user.id) {
             return NextResponse.json({ error: "Access denied" }, { status: 403 });
         }
 
-        // Generate PDF (sync mode)
-        try {
-            const templateHtml = template.html || "";
-            const templateCss = template.css || "";
+        // Common data encoding
+        const encodedData = Buffer.from(JSON.stringify(inputData || {})).toString('base64');
 
-            if (!templateHtml) {
-                console.error("Template HTML is missing for template:", template_id, "Fields found:", Object.keys(template));
-                throw new Error("Template HTML is missing");
-            }
+        if (webhook_callback) {
+            // ASYNC FLOW
+            const documentId = ID.unique();
 
-            console.log("Generating PDF for template:", template_id);
-
-            const { fileId, size } = await PDFGenerator.generateAndUploadPDF(
-                templateHtml,
-                templateCss,
-                data || {},
-                `${name}.pdf`,
-            );
-
-            // Encode data to base64
-            const encodedData = Buffer.from(JSON.stringify(data || {})).toString('base64');
-
-
-            // Create document record
-            const createdDocument = await tables.createRow({
+            // 1. Create document with "queued" status
+            await tables.createRow({
                 databaseId: DATABASE_ID,
                 tableId: COLLECTIONS.DOCUMENTS,
-                rowId: ID.unique(),
+                rowId: documentId,
                 data: {
                     template_id,
                     name,
                     user_id: user.id,
-                    pdf_file: fileId,
+                    pdf_file: "", // Empty until generated
                     data: encodedData,
-                    status: "completed",
-                    size: size,
+                    status: "queued",
+                    size: 0,
                     downloads: 0
-                }
+                },
+                permissions: [
+                    Permission.read(Role.user(user.id)),
+                    Permission.update(Role.user(user.id)),
+                    Permission.delete(Role.user(user.id)),
+                ]
             });
 
-            // Decode for response
-            const responseDocument = { ...createdDocument };
-            try {
-                const decoded = Buffer.from(createdDocument.data, 'base64').toString('utf8');
-                responseDocument.data = JSON.parse(decoded);
-            } catch (e) {
-                console.warn("Could not decode data for response:", e);
-            }
+            // 2. Trigger background generation (non-blocking)
+            // Note: Using a background "thread" simulation with an immediately invoked async function
+            (async () => {
+                try {
+                    console.log(`[Background] Starting generation for document: ${documentId}`);
 
-            // Generate new JWT
-            const secret = encoder.encode(JWT_SECRET);
-            const signature = await new SignJWT({
-                userId: user.id,
-                documentId: responseDocument.$id
-            })
-                .setProtectedHeader({ alg: "HS256" })
-                .setIssuedAt()
-                .sign(secret);
+                    const templateHtml = template.html || "";
+                    const templateCss = template.css || "";
 
-            await tables.updateRow({
-                databaseId: DATABASE_ID,
-                tableId: COLLECTIONS.DOCUMENTS,
-                rowId: responseDocument.$id,
-                data: {
-                    signature: signature
+                    const { fileId, size } = await PDFGenerator.generateAndUploadPDF(
+                        templateHtml,
+                        templateCss,
+                        inputData || {},
+                        `${name}.pdf`,
+                    );
+
+                    // Generate JWT signature for security
+                    const secret = encoder.encode(JWT_SECRET);
+                    const signature = await new SignJWT({
+                        userId: user.id,
+                        documentId: documentId
+                    })
+                        .setProtectedHeader({ alg: "HS256" })
+                        .setIssuedAt()
+                        .sign(secret);
+
+                    // Update document to completed
+                    await tables.updateRow({
+                        databaseId: DATABASE_ID,
+                        tableId: COLLECTIONS.DOCUMENTS,
+                        rowId: documentId,
+                        data: {
+                            pdf_file: fileId,
+                            status: "completed",
+                            size: size,
+                            signature: signature
+                        }
+                    });
+
+                    console.log(`[Background] Completed generation for document: ${documentId}`);
+
+                    // 3. Notify Webhook
+                    try {
+                        const downloadUrl = `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${documentId}/download?signature=${signature}`;
+
+                        await fetch(webhook_callback, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                success: true,
+                                documentId: documentId,
+                                status: "completed",
+                                pdfUrl: downloadUrl,
+                                name: name,
+                                size: size
+                            })
+                        });
+                        console.log(`[Background] Webhook notified: ${webhook_callback}`);
+                    } catch (webhookErr) {
+                        console.error("[Background] Failed to notify webhook:", webhookErr);
+                    }
+
+                } catch (error: unknown) {
+                    const errorMessage = error instanceof Error ? error.message : "Background generation failed";
+                    console.error(`[Background] Generation failed for ${documentId}:`, error);
+
+                    // Update document to failed
+                    try {
+                        await tables.updateRow({
+                            databaseId: DATABASE_ID,
+                            tableId: COLLECTIONS.DOCUMENTS,
+                            rowId: documentId,
+                            data: {
+                                status: "failed",
+                                error_message: errorMessage
+                            }
+                        });
+                    } catch (dbErr) {
+                        console.error("[Background] Failed to update document status to failed:", dbErr);
+                    }
+
+                    // Notify Webhook of failure
+                    try {
+                        await fetch(webhook_callback, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                success: false,
+                                documentId: documentId,
+                                status: "failed",
+                                error: errorMessage
+                            })
+                        });
+                    } catch (webhookErr) {
+                        console.error("[Background] Failed to notify webhook of error:", webhookErr);
+                    }
                 }
-            });
+            })();
 
-            // Webhook support logic (Simulated here for now)
-            if (webhook_callback) {
-                // In a real prod environment, this would be a background task
-                setTimeout(async () => {
-                    console.log(`Sending webhook to ${webhook_callback} for document ${createdDocument.$id}`);
-                    // POST payload with document ID and signature...
-                }, 100);
-                return NextResponse.json({
-                    success: true,
-                    message: "Document generation started, webhook will be notified.",
-                    documentId: createdDocument.$id,
-                });
-            }
-
+            // 3. Respond immediately
             return NextResponse.json({
                 success: true,
-                document: {
-                    id: responseDocument.$id,
-                    name: responseDocument.name,
-                    template_id: responseDocument.template_id,
-                    size: responseDocument.size,
-                    status: responseDocument.status,
-                    error_message: responseDocument.error_message,
-                    signature: signature
-                },
-                pdfUrl: `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${responseDocument.$id}/download?signature=${signature}`,
-            });
-        } catch (pdfError: unknown) {
-            const errorMessage = pdfError instanceof Error ? pdfError.message : "PDF generation failed";
-            console.error("PDF generation error:", pdfError);
-
-            // Encode data for failed document
-            const encodedData = Buffer.from(JSON.stringify(data || {})).toString('base64');
-
-            // Create document with failed status
-            const failedDocument = await tables.createRow({
-                databaseId: DATABASE_ID,
-                tableId: COLLECTIONS.DOCUMENTS,
-                rowId: ID.unique(),
-                data: {
-                    template_id,
-                    name,
-                    user_id: user.id,
-                    pdf_file: "",
-                    data: encodedData,
-                    status: "failed",
-                    error_message: errorMessage
-                }
+                status: "queued",
+                documentId: documentId,
+                message: "Document generation enqueued. You will be notified via webhook."
             });
 
-            return NextResponse.json(
-                {
-                    error: "Failed to generate PDF",
+        } else {
+            // SYNC FLOW (Original logic)
+            try {
+                const templateHtml = template.html || "";
+                const templateCss = template.css || "";
+
+                const { fileId, size } = await PDFGenerator.generateAndUploadPDF(
+                    templateHtml,
+                    templateCss,
+                    inputData || {},
+                    `${name}.pdf`,
+                );
+
+                const documentId = ID.unique();
+                const secret = encoder.encode(JWT_SECRET);
+                const signature = await new SignJWT({ userId: user.id, documentId })
+                    .setProtectedHeader({ alg: "HS256" })
+                    .setIssuedAt()
+                    .sign(secret);
+
+                const createdDocument = await tables.createRow({
+                    databaseId: DATABASE_ID,
+                    tableId: COLLECTIONS.DOCUMENTS,
+                    rowId: documentId,
+                    data: {
+                        template_id,
+                        name,
+                        user_id: user.id,
+                        pdf_file: fileId,
+                        data: encodedData,
+                        status: "completed",
+                        size: size,
+                        signature: signature,
+                        downloads: 0
+                    },
+                    permissions: [
+                        Permission.read(Role.user(user.id)),
+                        Permission.update(Role.user(user.id)),
+                        Permission.delete(Role.user(user.id)),
+                    ]
+                });
+
+                return NextResponse.json({
+                    success: true,
                     document: {
-                        id: failedDocument.$id,
-                        name: failedDocument.name,
-                        template_id: failedDocument.template_id,
-                        size: failedDocument.size,
-                        status: failedDocument.status,
-                        error_message: failedDocument.error_message,
-                    }
-                },
-                { status: 500 },
-            );
+                        id: createdDocument.$id,
+                        name: createdDocument.name,
+                        template_id: createdDocument.template_id,
+                        size: createdDocument.size,
+                        status: createdDocument.status,
+                        signature: signature
+                    },
+                    pdfUrl: `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${createdDocument.$id}/download?signature=${signature}`,
+                });
+            } catch (pdfError: unknown) {
+                const errorMessage = pdfError instanceof Error ? pdfError.message : "Failed to generate PDF";
+                console.error("Sync PDF generation error:", pdfError);
+                return NextResponse.json({ error: errorMessage }, { status: 500 });
+            }
         }
     } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : "Failed to generate document";
+        const errorMessage = error instanceof Error ? error.message : "Internal server error";
         console.error("Generate document error:", error);
-        return NextResponse.json(
-            { error: errorMessage },
-            { status: 500 },
-        );
+        return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }

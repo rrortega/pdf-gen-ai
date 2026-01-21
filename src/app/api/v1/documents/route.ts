@@ -15,13 +15,23 @@ export async function GET(request: NextRequest) {
 
     const { tables, user } = auth;
 
-    // Get documents for current user
+    // Get pagination parameters
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    // Change default limit to 10 as requested by user
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const offset = (page - 1) * limit;
+
+    // Get documents for current user with pagination
+    // Ensure orderDesc("$createdAt") is always applied
     const response = await tables.listRows({
       databaseId: DATABASE_ID,
       tableId: COLLECTIONS.DOCUMENTS,
       queries: [
         Query.equal("user_id", user.id),
         Query.orderDesc("$createdAt"),
+        Query.limit(limit),
+        Query.offset(offset),
       ]
     });
 
@@ -41,6 +51,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       documents: decodedRows,
+      total: response.total,
+      page,
+      limit
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Failed to list documents";

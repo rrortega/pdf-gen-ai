@@ -13,9 +13,9 @@ import { cookies } from "next/headers";
 // Constants
 export const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || "default";
 export const COLLECTIONS = {
-  TEMPLATES: "templates",
-  DOCUMENTS: "documents",
-  OAUTH_CODES: "oauth_codes"
+  TEMPLATES: process.env.NEXT_PUBLIC_APPWRITE_TEMPLATES_COLLECTION_ID || "templates",
+  DOCUMENTS: process.env.NEXT_PUBLIC_APPWRITE_DOCUMENTS_COLLECTION_ID || "documents",
+  OAUTH_CODES: process.env.OAUTH_CODES_COLLECTION_ID || "oauth_codes"
 } as const;
 
 export const BUCKETS = {

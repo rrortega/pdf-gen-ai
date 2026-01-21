@@ -1,13 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getAppwriteAccount } from "@/lib/appwrite";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Create account instance with the session (handled automatically)
     const account = await getAppwriteAccount();
 
     // Get current user
     const user = await account.get();
+
+    // Generate a JWT for the client to use with the Browser SDK
+    const jwtResponse = await account.createJWT();
+    const jwt = jwtResponse.jwt;
 
     return NextResponse.json({
       success: true,
@@ -17,6 +21,7 @@ export async function GET(request: NextRequest) {
         name: user.name,
         emailVerification: user.emailVerification,
       },
+      jwt,
     });
   } catch (error: unknown) {
     console.error("Auth check error:", error);

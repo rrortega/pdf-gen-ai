@@ -3,8 +3,48 @@ import { InputFile } from 'node-appwrite/file';
 import puppeteer from 'puppeteer-core';
 import Handlebars from 'handlebars';
 import { SignJWT } from 'jose';
+import fs from 'fs';
+import { execSync } from 'child_process';
 
-// Helper: Register Handlebars Helpers (Stripped from src/lib/hbs.ts)
+const findChromium = (log) => {
+    const isDebug = process.env.DEBUG === 'true';
+    if (isDebug) {
+        log("--- DEBUG MODE START ---");
+        try {
+            log(`which chromium-browser: ${execSync('which chromium-browser').toString().trim() || 'not found'}`);
+        } catch (e) { log(`which chromium-browser failed: ${e.message}`); }
+        try {
+            log(`which chromium: ${execSync('which chromium').toString().trim() || 'not found'}`);
+        } catch (e) { log(`which chromium failed: ${e.message}`); }
+        try {
+            log(`which chromedriver: ${execSync('which chromedriver').toString().trim() || 'not found'}`);
+        } catch (e) { log(`which chromedriver failed: ${e.message}`); }
+        try {
+            log(`ls -l /usr/bin | grep chrom: \n${execSync('ls -l /usr/bin | grep chrom').toString().trim() || 'none'}`);
+        } catch (e) { log(`ls grep failed: ${e.message}`); }
+        log("--- DEBUG MODE END ---");
+    }
+
+    const paths = [
+        process.env.CHROMIUM_PATH || "/usr/bin/chromium-browser",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/chromium",
+        "/usr/local/bin/chromium",
+        "/usr/local/bin/chromium-browser"
+    ].filter(Boolean);
+
+    for (const path of paths) {
+        if (fs.existsSync(path)) {
+            log(`Found Chromium at: ${path}`);
+            return path;
+        }
+    }
+
+    log(`WARNING: Chromium not found in standard paths: ${paths.join(', ')}`);
+    // Fallback to environment variable or default
+    return process.env.CHROMIUM_PATH || "/usr/bin/chromium-browser";
+};
+
 function registerHbsHelpers() {
     if (Handlebars.helpers["inc"]) return;
 
@@ -105,26 +145,30 @@ function registerHbsHelpers() {
 // Global browser instance for reuse
 let browser = null;
 
-const sendWebhook = async (url, payload, log, error) => {
+const createWebhookRecord = async (db, databaseId, collectionId, documentId, url, payload, log, error) => {
     if (!url) return;
     try {
-        log(`Sending webhook to: ${url}`);
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (!response.ok) {
-            error(`Webhook failed with status: ${response.status}`);
-        } else {
-            log('Webhook sent successfully.');
-        }
+        log(`Creating webhook record for: ${url}`);
+        await db.createDocument(
+            databaseId,
+            collectionId,
+            ID.unique(),
+            {
+                document_id: documentId,
+                url: url,
+                retry: 0,
+                response: null,
+                payload: typeof payload === 'object' ? JSON.stringify(payload) : payload,
+                execution_time: 0
+            }
+        );
+        log('Webhook record created successfully.');
     } catch (err) {
-        error(`Failed to send webhook: ${err.message}`);
+        error(`Failed to create webhook record: ${err.message}`);
     }
 };
 
-export default async ({ req, res, log, error }) => {
+const main = async ({ req, res, log, error }) => {
     // 0. Environment Check
     const API_KEY = process.env.APPWRITE_API_KEY;
     const ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
@@ -132,14 +176,15 @@ export default async ({ req, res, log, error }) => {
     const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
     const TEMPLATES_ID = process.env.NEXT_PUBLIC_APPWRITE_TEMPLATES_COLLECTION_ID || "templates";
     const DOCUMENTS_ID = process.env.NEXT_PUBLIC_APPWRITE_DOCUMENTS_COLLECTION_ID || "documents";
+    const WEBHOOKS_ID = process.env.NEXT_PUBLIC_APPWRITE_WEBHOOK_COLLECTION_ID || "webhooks"; // New table
     const PDF_BUCKET_ID = "pdfs";
     const JWT_SECRET = process.env.JWT_SECRET;
 
     // Domain for download URL (optional, fallback to APP_URL or request host if possible, but env is best)
-    const APP_DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL || "https://pdfgen.ai";
+    // const APP_DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL || "https://pdfgen.ai";
 
     // Default to Alpine Linux chromium path if not specified
-    const CHROMIUM_PATH = process.env.CHROMIUM_PATH || "/usr/bin/chromium-browser";
+    const CHROMIUM_PATH = findChromium(log);
 
     if (!API_KEY || !PROJECT_ID || !DATABASE_ID || !JWT_SECRET) {
         error("Missing required environment variables.");
@@ -330,6 +375,7 @@ export default async ({ req, res, log, error }) => {
 
         // 8. Update Document
         const sizeInKb = Math.round(pdfBuffer.length / 1024);
+
         await db.updateDocument(
             DATABASE_ID,
             DOCUMENTS_ID,
@@ -343,17 +389,17 @@ export default async ({ req, res, log, error }) => {
         );
         log(`Document ${documentId} updated to 'completed'.`);
 
-        // 9. Send Webhook (Success)
+        // 9. NEW: Create Webhook Record (Success)
         if (webhookCallback) {
-            const downloadUrl = `${APP_DOMAIN}/api/v1/documents/${documentId}/download?signature=${signature}`;
-            await sendWebhook(webhookCallback, {
+            const webhookData = {
                 success: true,
                 documentId: documentId,
                 status: "completed",
-                pdfUrl: downloadUrl,
+                pdfUrl: `${ENDPOINT.replace('/v1', '')}/storage/buckets/${PDF_BUCKET_ID}/files/${fileId}/view?project=${PROJECT_ID}`,
                 name: name,
                 size: sizeInKb
-            }, log, error);
+            };
+            await createWebhookRecord(db, DATABASE_ID, WEBHOOKS_ID, documentId, webhookCallback, webhookData, log, error);
         }
 
         return res.json({
@@ -368,6 +414,25 @@ export default async ({ req, res, log, error }) => {
 
         // Attempt to mark as failed if we have an ID
         if (req.body?.$id) {
+
+            // Re-extract webhook callback
+            let payload = req.body;
+            if (typeof payload === 'string') {
+                try { payload = JSON.parse(payload); } catch (e) { }
+            }
+            const webhookCallback = payload?.webhook_callback;
+
+            // Send Failure Webhook via DB Record
+            if (webhookCallback) {
+                const failureData = {
+                    success: false,
+                    documentId: req.body.$id,
+                    status: "failed",
+                    error: err.message
+                };
+                await createWebhookRecord(db, DATABASE_ID, WEBHOOKS_ID, req.body.$id, webhookCallback, failureData, log, error);
+            }
+
             try {
                 await db.updateDocument(
                     DATABASE_ID,
@@ -378,26 +443,8 @@ export default async ({ req, res, log, error }) => {
                         error_message: err.message
                     }
                 );
-
-                // 10. Send Webhook (Failure)
-                // Re-extract webhook callback from payload just in case we are in this block
-                let payload = req.body;
-                if (typeof payload === 'string') {
-                    try { payload = JSON.parse(payload); } catch (e) { }
-                }
-                const webhookCallback = payload?.webhook_callback;
-
-                if (webhookCallback) {
-                    await sendWebhook(webhookCallback, {
-                        success: false,
-                        documentId: req.body.$id,
-                        status: "failed",
-                        error: err.message
-                    }, log, error);
-                }
-
             } catch (updateErr) {
-                error(`Failed to update status/webhook for failure: ${updateErr.message}`);
+                error(`Failed to update status to failed: ${updateErr.message}`);
             }
         }
 
@@ -410,3 +457,5 @@ export default async ({ req, res, log, error }) => {
         return res.json({ success: false, error: err.message }, 500);
     }
 };
+
+export default main;

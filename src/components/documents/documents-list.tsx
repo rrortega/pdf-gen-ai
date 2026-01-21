@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useI18n } from "@/hooks/useI18n";
-import { getAppwriteClientSafe } from "@/lib/appwrite-client";
+import { getAppwriteClientSafe, Databases } from "@/lib/appwrite-client";
+import { Query } from "appwrite";
 
 export interface Document {
     $id: string;
@@ -14,8 +15,21 @@ export interface Document {
     size?: number;
     downloads?: number;
     error_message?: string;
+    webhook_callback?: string;
+    webhook_response?: string;
+    webhook_retry?: number;
     $createdAt: string;
     signature?: string;
+}
+
+export interface WebhookLog {
+    $id: string;
+    document_id: string;
+    url: string;
+    retry: number;
+    response: string | null;
+    execution_time: number;
+    $createdAt: string;
 }
 
 interface DocumentsListProps {
@@ -50,6 +64,11 @@ export default function DocumentsList({
 
     // Toast state
     const [showNewDocToast, setShowNewDocToast] = useState(false);
+
+    // Webhook Modal State
+    const [selectedWebhookDoc, setSelectedWebhookDoc] = useState<Document | null>(null);
+    const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
+    const [loadingLogs, setLoadingLogs] = useState(false);
 
     // Refs to store current state to use in realtime callback
     const pageRef = useRef(currentPage);
@@ -145,6 +164,11 @@ export default function DocumentsList({
                             setDocuments(prev => prev.map(doc =>
                                 doc.$id === payload.$id ? { ...doc, ...payload } : doc
                             ));
+
+                            // Also update selected doc if it matches
+                            if (selectedWebhookDoc && selectedWebhookDoc.$id === payload.$id) {
+                                setSelectedWebhookDoc({ ...selectedWebhookDoc, ...payload });
+                            }
                         } else if (event?.includes('.delete')) {
                             setAnimatingOutIds(prev => new Set(prev).add(payload.$id));
                             setTimeout(() => {
@@ -175,7 +199,7 @@ export default function DocumentsList({
         return () => {
             unsubscribers.forEach(unsub => unsub());
         };
-    }, [currentUserId]);
+    }, [currentUserId, selectedWebhookDoc]);
 
     const handleGoToFirstPage = () => {
         setCurrentPage(1);
@@ -249,6 +273,47 @@ export default function DocumentsList({
         const domain = process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL || "";
         const url = `${domain}/api/v1/documents/${doc.$id}/download${doc.signature ? `?signature=${doc.signature}` : ''}`;
         window.open(url, "_blank");
+    };
+
+    // Webhook Logs Fetching
+    const openWebhookLogs = async (doc: Document) => {
+        setSelectedWebhookDoc(doc);
+        setLoadingLogs(true);
+        setWebhookLogs([]);
+
+        try {
+            const client = getAppwriteClientSafe();
+            const databases = new Databases(client);
+            const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || "6968108e00298587f520";
+            const webhookCollectionId = process.env.NEXT_PUBLIC_APPWRITE_WEBHOOK_COLLECTION_ID || "webhooks";
+
+            const response = await databases.listDocuments(
+                databaseId,
+                webhookCollectionId,
+                [
+                    Query.equal("document_id", doc.$id),
+                    Query.orderDesc("$createdAt")
+                ]
+            );
+
+            // Cast generic document to WebhookLog
+            const logs = response.documents.map(d => ({
+                $id: d.$id,
+                document_id: d.document_id,
+                url: d.url,
+                retry: d.retry,
+                response: d.response,
+                execution_time: d.execution_time,
+                $createdAt: d.$createdAt
+            })) as WebhookLog[];
+
+            setWebhookLogs(logs);
+
+        } catch (err) {
+            console.error("Failed to fetch webhook logs", err);
+        } finally {
+            setLoadingLogs(false);
+        }
     };
 
     return (
@@ -354,14 +419,31 @@ export default function DocumentsList({
                                                         {doc.name}
                                                     </h3>
                                                     {!isDeletingNow && (
-                                                        <span
-                                                            className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider ${doc.status === 'completed' ? 'bg-green-100 text-green-700 border border-green-200' :
-                                                                doc.status === 'failed' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-amber-100 text-amber-700 border border-amber-200 animate-pulse'
-                                                                }`}
-                                                            title={doc.status === 'failed' && doc.error_message ? doc.error_message : undefined}
-                                                        >
-                                                            {t(doc.status)}
-                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span
+                                                                className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider ${doc.status === 'completed' ? 'bg-green-100 text-green-700 border border-green-200' :
+                                                                    doc.status === 'failed' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-amber-100 text-amber-700 border border-amber-200 animate-pulse'
+                                                                    }`}
+                                                                title={doc.status === 'failed' && doc.error_message ? doc.error_message : undefined}
+                                                            >
+                                                                {t(doc.status)}
+                                                            </span>
+
+                                                            {doc.webhook_callback && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        openWebhookLogs(doc);
+                                                                    }}
+                                                                    className="flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 hover:bg-purple-200 transition-colors"
+                                                                >
+                                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                                    </svg>
+                                                                    {t("Async")}
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
                                                 <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
@@ -487,6 +569,108 @@ export default function DocumentsList({
                                 className="flex-1 px-6 py-3.5 text-white bg-red-600 hover:bg-red-700 rounded-2xl font-black transition-all shadow-xl shadow-red-200 flex items-center justify-center"
                             >
                                 {t("Delete")}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Webhook Logs Modal */}
+            {selectedWebhookDoc && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2rem] shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col transform animate-in zoom-in-95 duration-300 border border-gray-100">
+
+                        {/* Header */}
+                        <div className="p-8 border-b border-gray-100 flex items-start justify-between">
+                            <div>
+                                <h3 className="text-2xl font-black text-gray-900 mb-2 flex items-center gap-3">
+                                    <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                    </div>
+                                    {t("Webhook Logs")}
+                                </h3>
+                                <div className="text-gray-500 text-sm">
+                                    {t("Delivery logs for document:")} <span className="font-bold text-gray-800">{selectedWebhookDoc.name}</span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setSelectedWebhookDoc(null)}
+                                className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50">
+
+                            {/* Callback URL Info */}
+                            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6">
+                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t("Callback URL")}</label>
+                                <code className="text-sm text-gray-800 break-all font-mono block bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                    {selectedWebhookDoc.webhook_callback}
+                                </code>
+                            </div>
+
+                            {loadingLogs ? (
+                                <div className="flex flex-col items-center justify-center py-12">
+                                    <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
+                                    <div className="text-gray-500 font-medium animate-pulse">{t("Loading webhook logs...")}</div>
+                                </div>
+                            ) : webhookLogs.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+                                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                    </div>
+                                    <h4 className="text-lg font-bold text-gray-900 mb-1">{t("No logs found yet")}</h4>
+                                    <p className="text-gray-500 text-sm max-w-xs mx-auto">
+                                        {t("Webhook might still be processing or hasn't fired yet.")}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {webhookLogs.map((log) => (
+                                        <div key={log.$id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                            <div className="p-4 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border ${(log.response && log.response.includes('success')) || (log.response && log.response.includes('200'))
+                                                            ? 'bg-green-50 text-green-700 border-green-200'
+                                                            : 'bg-red-50 text-red-700 border-red-200'
+                                                        }`}>
+                                                        {(log.response && log.response.includes('200')) ? t("Success") : t("Failed")}
+                                                    </span>
+                                                    <span className="text-xs text-gray-400 font-mono">
+                                                        {new Date(log.$createdAt).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                <div className="text-xs font-bold text-gray-500">
+                                                    {t("Attempt")}: {log.retry}
+                                                </div>
+                                            </div>
+                                            <div className="p-4 bg-gray-900 text-gray-300 font-mono text-xs overflow-x-auto">
+                                                <pre className="whitespace-pre-wrap break-all">
+                                                    {log.response || t("No response data")}
+                                                </pre>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-[2rem] flex justify-end">
+                            <button
+                                onClick={() => setSelectedWebhookDoc(null)}
+                                className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+                            >
+                                {t("Close Log")}
                             </button>
                         </div>
                     </div>

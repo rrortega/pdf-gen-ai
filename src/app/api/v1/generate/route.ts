@@ -12,6 +12,44 @@ import { validateWebhookUrl } from "@/lib/security";
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-me";
 const encoder = new TextEncoder();
 
+const sendWebhookWithRetry = async (url: string, payload: any) => {
+    let attempts = 0;
+    const maxAttempts = 3;
+    let lastResponseContent = "";
+
+    while (attempts < maxAttempts) {
+        attempts++;
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+            const text = await response.text();
+            lastResponseContent = `${response.status} ${response.statusText}: ${text.substring(0, 500)}`;
+
+            if (!response.ok) {
+                if (attempts < maxAttempts) await new Promise(r => setTimeout(r, 10000));
+            } else {
+                return { attempts, response: lastResponseContent, success: true };
+            }
+
+        } catch (err: any) {
+            const isTimeout = err.name === 'AbortError';
+            const msg = isTimeout ? 'Timeout after 10s' : err.message;
+            lastResponseContent = `Error: ${msg}`;
+            if (attempts < maxAttempts) await new Promise(r => setTimeout(r, 10000));
+        }
+    }
+    return { attempts, response: lastResponseContent, success: false };
+};
+
 /**
  * Generate PDF from template
  * POST /api/v1/generate
@@ -57,10 +95,9 @@ export async function POST(request: NextRequest) {
         const generationMode = process.env.PDF_GENERATION_MODE || "sync";
 
         if (generationMode === "queue") {
-            // QUEUE MODE: We don't generate the PDF here, we assume an external worker does it.
+            // QUEUE MODE: Create document. Function will handle webhook logging.
             const documentId = ID.unique();
 
-            // 1. Create document with "queued" status
             await tables.createRow({
                 databaseId: DATABASE_ID,
                 tableId: COLLECTIONS.DOCUMENTS,
@@ -74,7 +111,9 @@ export async function POST(request: NextRequest) {
                     status: "queued",
                     size: 0,
                     downloads: 0,
-                    webhook_callback: webhook_callback || null
+                    webhook_callback: webhook_callback || null,
+                    webhook_response: null,
+                    webhook_retry: 0
                 },
                 permissions: [
                     Permission.read(Role.user(user.id)),
@@ -84,7 +123,7 @@ export async function POST(request: NextRequest) {
             });
 
             if (webhook_callback) {
-                // Async with webhook: respond immediately
+                // Return immediately
                 return NextResponse.json({
                     success: true,
                     status: "queued",
@@ -92,14 +131,20 @@ export async function POST(request: NextRequest) {
                     message: "Document generation enqueued. You will be notified via webhook."
                 });
             } else {
-                // Sync wait: Polling for up to X seconds
+                // Sync wait: Polling for up to X seconds (unchanged logic for sync-wait without webhook)
+                // If webhook_callback is NOT provided, client waits.
+                // If webhook_callback IS provided, we returned above.
+
+                // ...Polling Logic (omitted for brevity as it remains same, only minor webhook logic changed)...
+                // Since webhook_callback logic is above, this block is for NO webhook_callback
+
                 console.log(`[Queue-Wait] Polling status for document ${documentId}...`);
                 const startTime = Date.now();
                 const timeoutSeconds = parseInt(process.env.PDF_GENERATION_TIMEOUT || "30", 10);
                 const timeoutMs = timeoutSeconds * 1000;
 
                 while (Date.now() - startTime < timeoutMs) {
-                    await new Promise(resolve => setTimeout(resolve, 2000)); // Poll every 2 seconds
+                    await new Promise(resolve => setTimeout(resolve, 2000));
 
                     const doc = await tables.getRow({
                         databaseId: DATABASE_ID,
@@ -132,30 +177,24 @@ export async function POST(request: NextRequest) {
 
                 // Timeout
                 console.error(`[Queue-Wait] Timeout waiting for document ${documentId}`);
-
                 try {
                     await tables.updateRow({
                         databaseId: DATABASE_ID,
                         tableId: COLLECTIONS.DOCUMENTS,
                         rowId: documentId,
-                        data: {
-                            status: "failed",
-                            error_message: "Document generation timed out in queue"
-                        }
+                        data: { status: "failed", error_message: "Document generation timed out in queue" }
                     });
-                } catch (dbErr) {
-                    console.error("[Queue-Wait] Failed to update document status to failed:", dbErr);
-                }
+                } catch (dbErr) { console.error(dbErr); }
 
-                return NextResponse.json({
-                    error: "Document generation timed out in queue",
-                    documentId: documentId,
-                    status: "failed"
-                }, { status: 504 });
+                return NextResponse.json({ error: "Document generation timed out", documentId, status: "failed" }, { status: 504 });
+
             }
 
         } else if (webhook_callback) {
             // ASYNC FLOW (sync mode but with webhook)
+            // Not really "async" if we process it here, but requested behavior:
+            // "el controlador antes de mandar el webhook lo registra aqui en esta tabla y luego lo procesa"
+
             const documentId = ID.unique();
 
             // 1. Create document with "queued" status
@@ -167,12 +206,14 @@ export async function POST(request: NextRequest) {
                     template_id,
                     name,
                     user_id: user.id,
-                    pdf_file: "", // Empty until generated
+                    pdf_file: "",
                     data: encodedData,
                     status: "queued",
                     size: 0,
                     downloads: 0,
-                    webhook_callback: webhook_callback || null
+                    webhook_callback: webhook_callback || null,
+                    webhook_response: null,
+                    webhook_retry: 0
                 },
                 permissions: [
                     Permission.read(Role.user(user.id)),
@@ -181,9 +222,26 @@ export async function POST(request: NextRequest) {
                 ]
             });
 
-            // 2. Trigger background generation (non-blocking)
+            // 2. Trigger background generation (Sync logic wrapped in async for webhook handling)
             (async () => {
+                let webhookId = null;
                 try {
+                    // 2a. Register Webhook in DB
+                    const webhookRecord = await tables.createRow({
+                        databaseId: DATABASE_ID,
+                        tableId: COLLECTIONS.WEBHOOKS,
+                        rowId: ID.unique(),
+                        data: {
+                            document_id: documentId,
+                            url: webhook_callback,
+                            retry: 0,
+                            response: null,
+                            payload: null,
+                            execution_time: 0
+                        }
+                    });
+                    webhookId = webhookRecord.$id;
+
                     console.log(`[Background] Starting generation for document: ${documentId}`);
 
                     const templateHtml = template.html || "";
@@ -196,7 +254,6 @@ export async function POST(request: NextRequest) {
                         `${name}.pdf`,
                     );
 
-                    // Generate JWT signature for security
                     const secret = encoder.encode(JWT_SECRET);
                     const signature = await new SignJWT({
                         userId: user.id,
@@ -206,7 +263,7 @@ export async function POST(request: NextRequest) {
                         .setIssuedAt()
                         .sign(secret);
 
-                    // Update document to completed
+                    // Update document
                     await tables.updateRow({
                         databaseId: DATABASE_ID,
                         tableId: COLLECTIONS.DOCUMENTS,
@@ -219,62 +276,69 @@ export async function POST(request: NextRequest) {
                         }
                     });
 
-                    console.log(`[Background] Completed generation for document: ${documentId}`);
+                    // 3. Process Webhook (Send it)
+                    const downloadUrl = `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${documentId}/download?signature=${signature}`;
 
-                    // 3. Notify Webhook
-                    try {
-                        const downloadUrl = `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${documentId}/download?signature=${signature}`;
+                    const webhookData = {
+                        success: true,
+                        documentId: documentId,
+                        status: "completed",
+                        pdfUrl: downloadUrl,
+                        name: name,
+                        size: size
+                    };
 
-                        await fetch(webhook_callback, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                success: true,
-                                documentId: documentId,
-                                status: "completed",
-                                pdfUrl: downloadUrl,
-                                name: name,
-                                size: size
-                            })
-                        });
-                        console.log(`[Background] Webhook notified: ${webhook_callback}`);
-                    } catch (webhookErr) {
-                        console.error("[Background] Failed to notify webhook:", webhookErr);
-                    }
+                    const webhookResult = await sendWebhookWithRetry(webhook_callback, webhookData);
 
-                } catch (error: unknown) {
+                    // Update Webhook Record
+                    await tables.updateRow({
+                        databaseId: DATABASE_ID,
+                        tableId: COLLECTIONS.WEBHOOKS,
+                        rowId: webhookId,
+                        data: {
+                            retry: webhookResult.attempts,
+                            response: webhookResult.response,
+                            payload: JSON.stringify(webhookData),
+                            execution_time: 0
+                        }
+                    });
+
+                } catch (error: any) {
                     const errorMessage = error instanceof Error ? error.message : "Background generation failed";
                     console.error(`[Background] Generation failed for ${documentId}:`, error);
 
-                    // Update document to failed
+                    // Update document failed
                     try {
                         await tables.updateRow({
                             databaseId: DATABASE_ID,
                             tableId: COLLECTIONS.DOCUMENTS,
                             rowId: documentId,
+                            data: { status: "failed", error_message: errorMessage }
+                        });
+                    } catch (e) { }
+
+                    // Process Webhook (Failure)
+                    if (webhookId) {
+                        const failureData = {
+                            success: false,
+                            documentId: documentId,
+                            status: "failed",
+                            error: errorMessage
+                        };
+
+                        const webhookResult = await sendWebhookWithRetry(webhook_callback, failureData);
+
+                        await tables.updateRow({
+                            databaseId: DATABASE_ID,
+                            tableId: COLLECTIONS.WEBHOOKS,
+                            rowId: webhookId,
                             data: {
-                                status: "failed",
-                                error_message: errorMessage
+                                retry: webhookResult.attempts,
+                                response: webhookResult.response,
+                                payload: JSON.stringify(failureData),
+                                execution_time: 0
                             }
                         });
-                    } catch (dbErr) {
-                        console.error("[Background] Failed to update document status to failed:", dbErr);
-                    }
-
-                    // Notify Webhook of failure
-                    try {
-                        await fetch(webhook_callback, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                success: false,
-                                documentId: documentId,
-                                status: "failed",
-                                error: errorMessage
-                            })
-                        });
-                    } catch (webhookErr) {
-                        console.error("[Background] Failed to notify webhook of error:", webhookErr);
                     }
                 }
             })();
@@ -288,7 +352,7 @@ export async function POST(request: NextRequest) {
             });
 
         } else {
-            // SYNC FLOW (sync mode, no webhook)
+            // SYNC FLOW (Classic)
             try {
                 const templateHtml = template.html || "";
                 const templateCss = template.css || "";
@@ -341,15 +405,13 @@ export async function POST(request: NextRequest) {
                     },
                     pdfUrl: `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${createdDocument.$id}/download?signature=${signature}`,
                 });
-            } catch (pdfError: unknown) {
+            } catch (pdfError: any) {
                 const errorMessage = pdfError instanceof Error ? pdfError.message : "Failed to generate PDF";
-                console.error("Sync PDF generation error:", pdfError);
                 return NextResponse.json({ error: errorMessage }, { status: 500 });
             }
         }
-    } catch (error: unknown) {
+    } catch (error: any) {
         const errorMessage = error instanceof Error ? error.message : "Internal server error";
-        console.error("Generate document error:", error);
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }

@@ -13,6 +13,7 @@ export default async ({ req, res, log, error }) => {
     const PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
     const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
     const WEBHOOKS_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_WEBHOOK_COLLECTION_ID || "webhooks";
+    const DOCUMENTS_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_DOCUMENTS_COLLECTION_ID || "documents";
 
     if (!API_KEY || !PROJECT_ID || !DATABASE_ID) {
         error("Missing required environment variables.");
@@ -90,6 +91,7 @@ export default async ({ req, res, log, error }) => {
         }
 
         const executionTime = Date.now() - startTime;
+        const responseString = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData);
 
         // 4. Update Webhook Record with Result
         await db.updateDocument(
@@ -97,11 +99,29 @@ export default async ({ req, res, log, error }) => {
             WEBHOOKS_COLLECTION_ID,
             webhookId,
             {
-                response: typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData),
+                response: responseString,
                 execution_time: executionTime,
                 status: success ? 'delivered' : 'failed'
             }
         );
+
+        // 5. Update Original Document Record
+        if (document.document_id) {
+            try {
+                await db.updateDocument(
+                    DATABASE_ID,
+                    DOCUMENTS_COLLECTION_ID,
+                    document.document_id,
+                    {
+                        webhook_response: responseString,
+                        webhook_retry: (document.retry || 0) + 1
+                    }
+                );
+                log(`Document ${document.document_id} updated with webhook result.`);
+            } catch (docErr) {
+                error(`Failed to update document ${document.document_id}: ${docErr.message}`);
+            }
+        }
 
         log(`Webhook record updated. Execution time: ${executionTime}ms`);
 

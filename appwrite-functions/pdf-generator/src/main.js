@@ -102,6 +102,9 @@ function registerHbsHelpers() {
     });
 }
 
+// Global browser instance for reuse
+let browser = null;
+
 export default async ({ req, res, log, error }) => {
     // 0. Environment Check
     const API_KEY = process.env.APPWRITE_API_KEY;
@@ -110,7 +113,7 @@ export default async ({ req, res, log, error }) => {
     const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
     const TEMPLATES_ID = process.env.NEXT_PUBLIC_APPWRITE_TEMPLATES_COLLECTION_ID || "templates";
     const DOCUMENTS_ID = process.env.NEXT_PUBLIC_APPWRITE_DOCUMENTS_COLLECTION_ID || "documents";
-    const PDF_BUCKET_ID = "pdfs"; // Assuming 'pdfs' based on previous context
+    const PDF_BUCKET_ID = "pdfs";
     const JWT_SECRET = process.env.JWT_SECRET;
 
     if (!API_KEY || !PROJECT_ID || !DATABASE_ID || !JWT_SECRET) {
@@ -129,10 +132,7 @@ export default async ({ req, res, log, error }) => {
 
     try {
         // 2. Parse Payload
-        // Standard Appwrite Event payload is inside req.body
         let payload = req.body;
-
-        // If coming from body as string (sometimes happens in testing or different runtimes)
         if (typeof payload === 'string') {
             try { payload = JSON.parse(payload); } catch (e) { }
         }
@@ -186,25 +186,43 @@ export default async ({ req, res, log, error }) => {
         <body>${htmlContent}</body>
         </html>`;
 
-        // Launch Browser
-        // Use @sparticuz/chromium for AWS Lambda / Appwrite Functions environments
-        const browser = await puppeteer.launch({
-            args: chromium.args,
-            defaultViewport: chromium.defaultViewport,
-            executablePath: await chromium.executablePath(),
-            headless: chromium.headless,
-        });
+        // Launch Browser Logic (Optimized for Reuse)
+        // Check if browser exists and is connected
+        if (browser && !browser.isConnected()) {
+            log("Browser disconnected, closing old instance...");
+            try { await browser.close(); } catch (e) { }
+            browser = null;
+        }
+
+        if (!browser) {
+            log("Launching new Chromium instance...");
+            browser = await puppeteer.launch({
+                args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox"],
+                defaultViewport: chromium.defaultViewport,
+                executablePath: await chromium.executablePath(),
+                headless: chromium.headless,
+                ignoreHTTPSErrors: true,
+            });
+        } else {
+            log("Reusing existing Chromium instance.");
+        }
 
         const page = await browser.newPage();
-        await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+        let pdfBuffer;
 
-        const pdfBuffer = await page.pdf({
-            format: 'A4',
-            printBackground: true,
-            margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
-        });
+        try {
+            await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
 
-        await browser.close();
+            pdfBuffer = await page.pdf({
+                format: 'A4',
+                printBackground: true,
+                margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
+            });
+        } finally {
+            // ALWAYS close the page to free RAM, but keep browser open
+            await page.close();
+        }
+
         log(`PDF Generated. Size: ${pdfBuffer.length} bytes.`);
 
         // 6. Upload to Storage
@@ -264,6 +282,13 @@ export default async ({ req, res, log, error }) => {
             }
         }
 
+        // If generic error, maybe close browser to reset state for next run
+        if (err.message.includes("Protocol error") || err.message.includes("Target closed")) {
+            if (browser) await browser.close();
+            browser = null;
+        }
+
         return res.json({ success: false, error: err.message }, 500);
     }
 };
+

@@ -10,12 +10,13 @@ export class PDFGenerator {
   private static browser: Browser | null = null;
 
   private static async getBrowser(): Promise<Browser> {
-    if (!this.browser || !this.browser.connected) {
-      if (this.browser) {
-        try { await this.browser.close(); } catch { /* ignore */ }
-        this.browser = null;
-      }
+    if (this.browser && !this.browser.isConnected()) {
+      console.warn("[PDFGenerator] Browser disconnected, closing old instance...");
+      try { await this.browser.close(); } catch { /* ignore */ }
+      this.browser = null;
+    }
 
+    if (!this.browser) {
       const isProd = process.env.NODE_ENV === "production";
       let executablePath: string | null = null;
 
@@ -58,11 +59,18 @@ export class PDFGenerator {
           "--no-sandbox",
           "--disable-setuid-sandbox"
         ],
-        defaultViewport: isProd ? chromium.defaultViewport : { width: 1280, height: 720 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        defaultViewport: isProd ? (chromium as any).defaultViewport : { width: 1280, height: 720 },
         executablePath: executablePath || undefined,
-        headless: isProd ? chromium.headless : true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        headless: isProd ? (chromium as any).headless : true,
       })) as unknown as Browser;
+
+      console.log("[PDFGenerator] New browser instance launched.");
+    } else {
+      // console.log("[PDFGenerator] Reusing existing browser instance.");
     }
+
     return this.browser;
   }
 

@@ -49,9 +49,107 @@ export async function POST(request: NextRequest) {
 
         // Common data encoding
         const encodedData = Buffer.from(JSON.stringify(inputData || {})).toString('base64');
+        const generationMode = process.env.PDF_GENERATION_MODE || "sync";
 
-        if (webhook_callback) {
-            // ASYNC FLOW
+        if (generationMode === "queue") {
+            // QUEUE MODE: We don't generate the PDF here, we assume an external worker does it.
+            const documentId = ID.unique();
+
+            // 1. Create document with "queued" status
+            await tables.createRow({
+                databaseId: DATABASE_ID,
+                tableId: COLLECTIONS.DOCUMENTS,
+                rowId: documentId,
+                data: {
+                    template_id,
+                    name,
+                    user_id: user.id,
+                    pdf_file: "",
+                    data: encodedData,
+                    status: "queued",
+                    size: 0,
+                    downloads: 0
+                },
+                permissions: [
+                    Permission.read(Role.user(user.id)),
+                    Permission.update(Role.user(user.id)),
+                    Permission.delete(Role.user(user.id)),
+                ]
+            });
+
+            if (webhook_callback) {
+                // Async with webhook: respond immediately
+                return NextResponse.json({
+                    success: true,
+                    status: "queued",
+                    documentId: documentId,
+                    message: "Document generation enqueued. You will be notified via webhook."
+                });
+            } else {
+                // Sync wait: Polling for up to X seconds
+                console.log(`[Queue-Wait] Polling status for document ${documentId}...`);
+                const startTime = Date.now();
+                const timeoutSeconds = parseInt(process.env.PDF_GENERATION_TIMEOUT || "30", 10);
+                const timeoutMs = timeoutSeconds * 1000;
+
+                while (Date.now() - startTime < timeoutMs) {
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Poll every 2 seconds
+
+                    const doc = await tables.getRow({
+                        databaseId: DATABASE_ID,
+                        tableId: COLLECTIONS.DOCUMENTS,
+                        rowId: documentId
+                    });
+
+                    if (doc.status === "completed") {
+                        const signature = doc.signature;
+                        return NextResponse.json({
+                            success: true,
+                            document: {
+                                id: doc.$id,
+                                name: doc.name,
+                                template_id: doc.template_id,
+                                size: doc.size,
+                                status: doc.status,
+                                signature: signature
+                            },
+                            pdfUrl: `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${doc.$id}/download?signature=${signature}`,
+                        });
+                    }
+
+                    if (doc.status === "failed") {
+                        return NextResponse.json({
+                            error: doc.error_message || "Document generation failed in queue"
+                        }, { status: 500 });
+                    }
+                }
+
+                // Timeout
+                console.error(`[Queue-Wait] Timeout waiting for document ${documentId}`);
+
+                try {
+                    await tables.updateRow({
+                        databaseId: DATABASE_ID,
+                        tableId: COLLECTIONS.DOCUMENTS,
+                        rowId: documentId,
+                        data: {
+                            status: "failed",
+                            error_message: "Document generation timed out in queue"
+                        }
+                    });
+                } catch (dbErr) {
+                    console.error("[Queue-Wait] Failed to update document status to failed:", dbErr);
+                }
+
+                return NextResponse.json({
+                    error: "Document generation timed out in queue",
+                    documentId: documentId,
+                    status: "failed"
+                }, { status: 504 });
+            }
+
+        } else if (webhook_callback) {
+            // ASYNC FLOW (sync mode but with webhook)
             const documentId = ID.unique();
 
             // 1. Create document with "queued" status
@@ -77,7 +175,6 @@ export async function POST(request: NextRequest) {
             });
 
             // 2. Trigger background generation (non-blocking)
-            // Note: Using a background "thread" simulation with an immediately invoked async function
             (async () => {
                 try {
                     console.log(`[Background] Starting generation for document: ${documentId}`);
@@ -184,7 +281,7 @@ export async function POST(request: NextRequest) {
             });
 
         } else {
-            // SYNC FLOW (Original logic)
+            // SYNC FLOW (sync mode, no webhook)
             try {
                 const templateHtml = template.html || "";
                 const templateCss = template.css || "";

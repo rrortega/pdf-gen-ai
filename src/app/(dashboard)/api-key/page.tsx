@@ -13,6 +13,7 @@ export default function ApiKeyPage() {
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [confirmText, setConfirmText] = useState("");
 
+    const domain = process.env.NEXT_PUBLIC_DOMAIN || "https://pdfgen.ai";
     useEffect(() => {
         const fetchApiKey = async () => {
             try {
@@ -257,7 +258,7 @@ export default function ApiKeyPage() {
                                     </p>
                                     <div className="bg-[#2d2d30] p-4 rounded-lg overflow-x-auto border border-gray-700">
                                         <pre className="text-xs leading-relaxed text-gray-300">
-                                            <code>{`curl -X POST "https://PDFGenAI.com/api/v1/generate" \\
+                                            <code>{`curl -X POST "${domain} /api/v1/generate" \\
   -H "Authorization: Bearer ${apiKey || "YOUR_API_KEY"}" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -281,7 +282,7 @@ export default function ApiKeyPage() {
                                         </p>
                                         <div className="bg-[#2d2d30] p-4 rounded-lg overflow-x-auto border border-gray-700">
                                             <pre className="text-xs leading-relaxed text-gray-300">
-                                                <code>{`curl -X POST "https://PDFGenAI.com/api/v1/generate" \\
+                                                <code>{`curl -X POST "${domain} api/v1/generate" \\
   -H "Authorization: Bearer ${apiKey || "YOUR_API_KEY"}" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -312,8 +313,8 @@ export default function ApiKeyPage() {
                                             <pre className="text-xs leading-relaxed text-green-400">
                                                 <code>{`{
   "documentId": "6968...123",
-  "status": "completed",
-  "pdfUrl": "https://aw.chamba.pro/v1/storage/buckets/pdfs/...",
+  "status": "queue",
+  "pdfUrl": "${domain}/api/v1/documents/doc_99a8b2/download?signature=...",
   "name": "Invoice_#123",
   "templateId": "696810c9003666d62326"
 }`}</code>

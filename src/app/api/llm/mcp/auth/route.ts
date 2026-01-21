@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, connection } from 'next/server';
 import { OAuthCodesService } from '@/lib/oauth-service';
 import { getAppwriteAccount } from '@/lib/appwrite';
 
@@ -7,6 +7,7 @@ import { getAppwriteAccount } from '@/lib/appwrite';
  * Handles user consent and generates authorization code
  */
 export async function GET(request: NextRequest) {
+    await connection();
     try {
         const searchParams = request.nextUrl.searchParams;
         const clientId = searchParams.get('client_id');

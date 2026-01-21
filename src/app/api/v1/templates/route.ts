@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, connection } from 'next/server';
 import { requireOAuth } from '@/lib/oauth-middleware';
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite';
 import { getAuthenticatedDatabases } from '@/lib/auth';
@@ -11,6 +11,7 @@ import { Query, ID } from 'node-appwrite';
  * Supports both OAuth tokens and API keys
  */
 export async function GET(request: NextRequest) {
+  await connection();
   try {
     const oauthResult = await requireOAuth(request, ['templates:read']);
 

@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse, connection } from "next/server";
 import { getAppwriteAccount } from "@/lib/appwrite";
 
 export async function GET() {
+  await connection();
   try {
     // Create account instance with the session (handled automatically)
     const account = await getAppwriteAccount();

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, connection } from "next/server";
 import {
   DATABASE_ID,
   COLLECTIONS,
@@ -8,6 +8,7 @@ import { getAuthenticatedDatabases } from "@/lib/auth";
 
 
 export async function GET(request: NextRequest) {
+  await connection();
   try {
     const auth = await getAuthenticatedDatabases(request);
     if (!auth) {

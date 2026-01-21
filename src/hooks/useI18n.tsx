@@ -57,7 +57,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 export function useI18n() {
     const context = useContext(I18nContext);
     if (context === undefined) {
-        throw new Error("useI18n must be used within an I18nProvider");
+        // Fallback for build/prerender scenarios or usage outside provider
+        return {
+            locale: "en" as Locale,
+            setLocale: () => { },
+            t: (key: string) => key
+        };
     }
     return context;
 }

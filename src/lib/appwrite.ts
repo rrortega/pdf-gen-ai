@@ -48,17 +48,26 @@ export const getSessionSecret = async () => {
 };
 
 export const getAppwriteAccount = async (sessionSecret?: string) => {
-  const secret = sessionSecret || (await getSessionSecret());
+  if (sessionSecret) {
+    return new Account(getAppwriteClient(sessionSecret));
+  }
+  const secret = await getSessionSecret();
   return new Account(getAppwriteClient(secret));
 };
 
 export const getAppwriteDatabases = async (sessionSecret?: string) => {
-  const secret = sessionSecret || (await getSessionSecret());
+  if (sessionSecret) {
+    return new Databases(getAppwriteClient(sessionSecret));
+  }
+  const secret = await getSessionSecret();
   return new Databases(getAppwriteClient(secret));
 };
 
 export const getAppwriteStorage = async (sessionSecret?: string) => {
-  const secret = sessionSecret || (await getSessionSecret());
+  if (sessionSecret) {
+    return new Storage(getAppwriteClient(sessionSecret));
+  }
+  const secret = await getSessionSecret();
   return new Storage(getAppwriteClient(secret));
 };
 

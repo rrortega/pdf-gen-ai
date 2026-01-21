@@ -6,6 +6,7 @@ import {
 import { Query } from "node-appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
 
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthenticatedDatabases(request);

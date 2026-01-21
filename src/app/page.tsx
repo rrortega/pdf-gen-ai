@@ -587,13 +587,24 @@ fetch('${process.env.NEXT_PUBLIC_DOMAIN || 'https://api.pdfgenai.com'}/api/v1/ge
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <Logo theme="dark" size="sm" />
-            <div className="text-sm">
-              © {new Date().getFullYear()} PDFGenAI powered by ChambaPRO SAPI de CV. {t("All rights reserved.")}
-            </div>
+            <FooterYear t={t} />
           </div>
         </div>
       </footer >
     </div >
+  );
+}
+
+function FooterYear({ t }: { t: (k: string) => string }) {
+  const [year, setYear] = useState(2025);
+  useEffect(() => {
+    setYear(new Date().getFullYear());
+  }, []);
+
+  return (
+    <div className="text-sm">
+      © {year} PDFGenAI powered by ChambaPRO SAPI de CV. {t("All rights reserved.")}
+    </div>
   );
 }
 

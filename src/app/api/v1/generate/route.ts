@@ -6,7 +6,7 @@ import {
 import { PDFGenerator } from "@/lib/pdf-generator";
 import { ID } from "node-appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
-import { jwtVerify, SignJWT } from "jose";
+import { SignJWT } from "jose";
 
 
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-me";

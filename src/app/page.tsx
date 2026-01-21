@@ -13,6 +13,7 @@ export default function Home() {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isAsync, setIsAsync] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -31,10 +32,39 @@ export default function Home() {
       setIsScrolled(window.scrollY > 50);
     };
 
+    const handleSmoothScroll = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchorNode = target.closest("a");
+
+      if (anchorNode && anchorNode.hash && anchorNode.origin === window.location.origin) {
+        const targetId = anchorNode.hash.slice(1);
+        const targetElement = document.getElementById(targetId);
+
+        if (targetElement) {
+          e.preventDefault();
+          const offset = 100; // Offset for fixed header
+          const elementPosition = targetElement.getBoundingClientRect().top;
+          const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: "smooth"
+          });
+
+          // Update URL without jump
+          window.history.pushState(null, "", `#${targetId}`);
+        }
+      }
+    };
+
     window.addEventListener("scroll", handleScroll);
+    document.addEventListener("click", handleSmoothScroll);
     checkAuth();
 
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      document.removeEventListener("click", handleSmoothScroll);
+    };
   }, []);
 
   // No longer blocking with a full-screen loading indicator
@@ -56,8 +86,10 @@ export default function Home() {
 
               {/* Desktop Menu - Centered */}
               <div className="hidden md:flex items-center justify-center flex-1 gap-12">
+                <a href="#editor" className="text-sm font-semibold text-gray-400 hover:text-white transition-all hover:scale-105 active:scale-95">{t("EDITOR")}</a>
                 <a href="#api" className="text-sm font-semibold text-gray-400 hover:text-white transition-all hover:scale-105 active:scale-95">{t("API")}</a>
                 <a href="#mcp" className="text-sm font-semibold text-gray-400 hover:text-white transition-all hover:scale-105 active:scale-95">{t("MCP")}</a>
+                <a href="#faq" className="text-sm font-semibold text-gray-400 hover:text-white transition-all hover:scale-105 active:scale-95">{t("FAQ")}</a>
               </div>
             </div>
 
@@ -134,35 +166,8 @@ export default function Home() {
         </div>
 
         {/* Hero Visual - Premium Browser Framework */}
-        <div className="relative group max-w-6xl mx-auto">
-          <div className="absolute -inset-4 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-[2.5rem] blur-3xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
-          <div className="relative bg-gray-900 rounded-[2rem] shadow-2xl border border-white/5 overflow-hidden">
-            {/* Browser Header */}
-            <div className="bg-gray-800/50 px-6 py-4 border-b border-white/5 flex items-center gap-4">
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/40"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/40"></div>
-                <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/40"></div>
-              </div>
-              <div className="flex-1 max-w-sm h-7 bg-gray-900/50 rounded-lg border border-white/5 flex items-center px-3 gap-2">
-                <div className="w-3 h-3 text-gray-500">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                </div>
-                <div className="text-[10px] text-gray-500 font-mono">pdfgenai.com/editor/w2-template</div>
-              </div>
-            </div>
-            {/* Image Content */}
-            <div className="aspect-video relative overflow-hidden">
-              <Image
-                src="/editor.png"
-                alt="Template Editor"
-                fill
-                className="object-cover object-top"
-                priority
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-gray-900/40 to-transparent"></div>
-            </div>
-          </div>
+        <div id="editor" className="relative group max-w-6xl mx-auto perspective-2000">
+          <HeroVisual t={t} />
         </div>
       </section>
 
@@ -198,6 +203,19 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
+
+              {/* API Mode Toggle - Outside the Card */}
+              <div className="mt-10 flex items-center gap-4 bg-gray-50 border border-gray-100 p-2 rounded-2xl w-fit shadow-sm ">
+                <span className={`text-xs font-bold uppercase tracking-tight transition-colors ${!isAsync ? 'text-blue-600' : 'text-gray-400'}`}>Sync</span>
+                <button
+                  onClick={() => setIsAsync(!isAsync)}
+                  className="relative w-14 h-[30px] bg-gray-200 rounded-full transition-all duration-300 focus:outline-none border border-gray-500 "
+                >
+                  <div className={`absolute border border-gray-500 top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 transform ${isAsync ? 'translate-x-7 bg-gray-500' : ''}`} />
+                  <div className={`absolute inset-0 rounded-full transition-colors duration-300 ${isAsync ? 'bg-blue-600/20' : 'bg-transparent'}`} />
+                </button>
+                <span className={`text-xs font-bold uppercase tracking-tight transition-colors ${isAsync ? 'text-blue-600' : 'text-gray-400'}`}>Async</span>
+              </div>
             </div>
             <div
               className="relative group h-[450px] select-none"
@@ -223,7 +241,12 @@ export default function Home() {
                   <span className="text-[10px] font-bold text-blue-500/50 uppercase tracking-widest">{t("Response")}</span>
                 </div>
                 <pre className="text-emerald-400">
-                  <code>{`{
+                  <code>{isAsync ? `{
+  "success": true,
+  "request_id": "req_88f2a1",
+  "status": "queued",
+  "message": "Generation started in the background. You will be notified via webhook."
+}` : `{
   "success": true,
   "document": {
     "id": "doc_99a8b2",
@@ -252,7 +275,7 @@ export default function Home() {
                   <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">{t("Request")}</span>
                 </div>
                 <pre className="text-blue-400">
-                  <code>{`// Generate PDF via API
+                  <code>{`// Generate PDF via API (${isAsync ? 'Asynchronous' : 'Synchronous'})
 fetch('${process.env.NEXT_PUBLIC_DOMAIN || 'https://api.pdfgenai.com'}/api/v1/generate', {
   method: 'POST',
   headers: {
@@ -266,7 +289,14 @@ fetch('${process.env.NEXT_PUBLIC_DOMAIN || 'https://api.pdfgenai.com'}/api/v1/ge
       customer: 'John Doe',
       amount: 1450.00,
       currency: 'USD'
-    }
+    }`}
+                    {isAsync && (
+                      <span className="text-yellow-400 font-black italic">
+                        {`,
+    webhook_callback: 'https://your-app.com/webhook'`}
+                      </span>
+                    )}
+                    {`
   })
 })`}</code>
                 </pre>
@@ -292,10 +322,10 @@ fetch('${process.env.NEXT_PUBLIC_DOMAIN || 'https://api.pdfgenai.com'}/api/v1/ge
             </div>
           </div>
         </div>
-      </section>
+      </section >
 
       {/* MCP Section - The Big Innovation */}
-      <section id="mcp" className="py-24 bg-gray-950 text-white relative overflow-hidden">
+      < section id="mcp" className="py-24 bg-gray-950 text-white relative overflow-hidden" >
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none overflow-hidden opacity-20">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600 rounded-full blur-[120px]"></div>
           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-600 rounded-full blur-[120px]"></div>
@@ -372,13 +402,41 @@ fetch('${process.env.NEXT_PUBLIC_DOMAIN || 'https://api.pdfgenai.com'}/api/v1/ge
               </div>
             </div>
 
-            {/* Mock Input Area */}
+            {/* Mock Input Area - ChatGPT + MCP Style */}
             <div className="relative pt-6 border-t border-white/5">
-              <div className="bg-gray-950/80 border border-white/10 rounded-2xl px-5 py-4 flex items-center justify-between shadow-2xl">
-                <div className="text-gray-500 text-sm font-medium">{t("Ask AI...")}</div>
-                <div className="flex gap-2">
-                  <div className="w-9 h-9 bg-gray-900 rounded-xl flex items-center justify-center text-gray-500 border border-white/5">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="MD12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+              <div className="bg-gray-900 border border-orange-500/50 rounded-[28px] p-2 flex flex-col shadow-2xl transition-all hover:border-orange-500 group-hover:shadow-orange-500/10">
+                <div className="px-4 py-2">
+                  <div className="text-gray-400 text-sm font-medium">{t("Ask AI...")}</div>
+                </div>
+
+                <div className="flex items-center justify-between px-2 pb-1">
+                  <div className="flex items-center gap-2">
+                    {/* Plus Icon */}
+                    <button className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    </button>
+
+                    {/* Tool Chip */}
+                    <div className="flex items-center gap-1.5 pl-1.5 pr-3 py-1 bg-white/5 rounded-full border border-white/10 hover:bg-white/10 transition-colors cursor-default">
+                      <div className="w-4 h-4 rounded-sm overflow-hidden flex items-center justify-center bg-blue-500">
+                        <Logo size="sm" theme="dark" showText={false} />
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-200">PDF Gen AI</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Microphone Icon */}
+                    <button className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                    </button>
+
+                    {/* Voice/Send Button */}
+                    <button className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-black shadow-lg hover:scale-105 active:scale-95 transition-all">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 3v18M8 7v10M16 7v10M4 10v4M20 10v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -415,10 +473,10 @@ fetch('${process.env.NEXT_PUBLIC_DOMAIN || 'https://api.pdfgenai.com'}/api/v1/ge
             </div>
           </div>
         </div>
-      </section>
+      </section >
 
       {/* How It Works */}
-      <section className="py-20">
+      < section className="py-20" >
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">{t("How It Works")}</h2>
@@ -460,10 +518,10 @@ fetch('${process.env.NEXT_PUBLIC_DOMAIN || 'https://api.pdfgenai.com'}/api/v1/ge
             </div>
           </div>
         </div>
-      </section>
+      </section >
 
       {/* CTA Section */}
-      <section className="bg-gradient-to-r from-gray-900 to-gray-800 text-white py-20">
+      < section className="bg-gradient-to-r from-gray-900 to-gray-800 text-white py-20" >
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-4xl md:text-5xl font-bold mb-6">{t("Ready to Get Started?")}</h2>
           <p className="text-xl text-gray-300 mb-10">
@@ -476,10 +534,56 @@ fetch('${process.env.NEXT_PUBLIC_DOMAIN || 'https://api.pdfgenai.com'}/api/v1/ge
             {isAuthenticated ? t("Go to Dashboard") : t("Start Free Trial")}
           </Link>
         </div>
-      </section>
+      </section >
+
+      {/* FAQ Section */}
+      < section id="faq" className="py-24 bg-white border-t border-gray-100" >
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-extrabold text-gray-900 mb-4">{t("Frequently Asked Questions")}</h2>
+            <p className="text-lg text-gray-600">
+              {t("Find answers to common questions about integration, API, and MCP features.")}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              {
+                q: "How do I start generating PDFs?",
+                a: "You can start by creating a template in the dashboard using HTML/CSS, then use your API Key to trigger generations via our REST API."
+              },
+              {
+                q: "What is the difference between Sync and Async calls?",
+                a: "Synchronous calls wait for the PDF to be generated and return the file immediately. Asynchronous calls trigger the generation in the background and notify you via Webhook when ready."
+              },
+              {
+                q: "How do Webhooks work?",
+                a: "When using asynchronous generation, you provide a callback URL. Once the PDF is ready, we send a POST request to that URL with the document details and download link."
+              },
+              {
+                q: "Is MCP compatible with all LLMs?",
+                a: "MCP is a standard protocol. It works with any AI client that supports the Model Context Protocol, including Claude Desktop, OpenAI Custom GPTs (via our bridge), and custom agents."
+              },
+              {
+                q: "Do I need to manage servers for PDF generation?",
+                a: "No, PDFGenAI is fully managed. We handle the browser clusters, scaling, and storage so you can focus on your data and design."
+              },
+              {
+                q: "Can I use custom fonts and external CSS?",
+                a: "Yes, our engine supports Google Fonts, external CSS files, and even JavaScript execution to ensure your PDFs look exactly like your web designs."
+              }
+            ].map((item, idx) => (
+              <div key={idx} className="bg-gray-50 rounded-2xl p-6 border border-gray-100 group hover:border-blue-200 transition-all hover:bg-blue-50/30">
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{t(item.q)}</h3>
+                <p className="text-gray-600 leading-relaxed">{t(item.a)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section >
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-12">
+      < footer className="bg-gray-900 text-gray-400 py-12" >
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <Logo theme="dark" size="sm" />
@@ -488,7 +592,95 @@ fetch('${process.env.NEXT_PUBLIC_DOMAIN || 'https://api.pdfgenai.com'}/api/v1/ge
             </div>
           </div>
         </div>
-      </footer>
-    </div>
+      </footer >
+    </div >
+  );
+}
+
+function HeroVisual({ t }: { t: (key: string) => string }) {
+  const [rotation, setRotation] = useState({ x: 0, y: 0 });
+  const [scrollTilt, setScrollTilt] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // Tilt back as we scroll down
+      const tilt = Math.min(window.scrollY / 40, 15);
+      setScrollTilt(tilt);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const visual = document.getElementById("hero-visual-inner");
+      if (!visual) return;
+
+      const rect = visual.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+
+      // Inverted magnet effect (pushed back)
+      const rotateX = ((y - centerY) / centerY) * 10;
+      const rotateY = ((centerX - x) / centerX) * 10;
+
+      setRotation({ x: rotateX, y: rotateY });
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    const container = document.getElementById("editor");
+    if (container) {
+      container.addEventListener("mousemove", handleMouseMove);
+      container.addEventListener("mouseleave", () => setRotation({ x: 0, y: 0 }));
+    }
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (container) {
+        container.removeEventListener("mousemove", handleMouseMove);
+      }
+    };
+  }, []);
+
+  return (
+    <>
+      <div className="absolute -inset-4 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-[2.5rem] blur-3xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
+      <div
+        id="hero-visual-inner"
+        className="relative bg-gray-900 rounded-[2rem] shadow-2xl border border-white/5 overflow-hidden transition-transform duration-300 ease-out"
+        style={{
+          transform: `rotateX(${rotation.x - scrollTilt}deg) rotateY(${rotation.y}deg)`,
+          transformStyle: "preserve-3d",
+        }}
+      >
+        {/* Glass Shine Effect */}
+        <div className="glass-shine" />
+
+        {/* Browser Header */}
+        <div className="bg-gray-800/50 px-6 py-4 border-b border-white/5 flex items-center gap-4 relative z-30">
+          <div className="flex gap-1.5 focus:scale-105 transition-transform">
+            <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/40"></div>
+            <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/40"></div>
+            <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/40"></div>
+          </div>
+          <div className="flex-1 max-w-sm h-7 bg-gray-900/50 rounded-lg border border-white/5 flex items-center px-3 gap-2">
+            <div className="w-3 h-3 text-gray-500">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+            </div>
+            <div className="text-[10px] text-gray-500 font-mono">pdfgenai.com/editor/w2-template</div>
+          </div>
+        </div>
+        {/* Image Content */}
+        <div className="aspect-video relative overflow-hidden">
+          <Image
+            src="/editor.png"
+            alt={t("Template Editor")}
+            fill
+            className="object-cover object-top"
+            priority
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/40 to-transparent z-10"></div>
+        </div>
+      </div>
+    </>
   );
 }

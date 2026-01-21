@@ -1,0 +1,13 @@
+{
+    "name": "webhook-handler",
+    "version": "1.0.0",
+    "description": "Appwrite Function to deliver webhooks",
+    "main": "src/main.js",
+    "type": "module",
+    "dependencies": {
+        "node-appwrite": "^13.0.0"
+    },
+    "engines": {
+        "node": ">=20.0.0"
+    }
+}

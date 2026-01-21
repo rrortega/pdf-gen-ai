@@ -717,7 +717,7 @@ fetch('${domain}/api/v1/generate', {
             {/* Footer in Menu */}
             <div className="mt-12 text-center">
               <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">
-                © {new Date().getFullYear()} PDFGenAI
+                © <span id="mobile-menu-year">2025</span> PDFGenAI
               </div>
             </div>
           </div>
@@ -728,11 +728,17 @@ fetch('${domain}/api/v1/generate', {
 }
 
 function FooterYear({ t }: { t: (k: string) => string }) {
-  const [year] = useState(() => new Date().getFullYear());
+  useEffect(() => {
+    const currentYear = new Date().getFullYear().toString();
+    const footerYear = document.getElementById("footer-year");
+    if (footerYear) footerYear.textContent = currentYear;
+    const mobileYear = document.getElementById("mobile-menu-year");
+    if (mobileYear) mobileYear.textContent = currentYear;
+  }, []);
 
   return (
     <div className="text-sm">
-      © {year} PDFGenAI powered by ChambaPRO SAPI de CV. {t("All rights reserved.")}
+      © <span id="footer-year">2025</span> PDFGenAI powered by ChambaPRO SAPI de CV. {t("All rights reserved.")}
     </div>
   );
 }

@@ -6,8 +6,8 @@
     "type": "module",
     "dependencies": {
         "node-appwrite": "^21.1.0",
-        "puppeteer-core": "22.6.0",
-        "@sparticuz/chromium": "123.0.0",
+        "puppeteer-core": "^21.9.0",
+        "@sparticuz/chromium": "^119.0.0",
         "handlebars": "^4.7.8",
         "jose": "^5.0.0"
     },

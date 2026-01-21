@@ -196,11 +196,13 @@ export default async ({ req, res, log, error }) => {
         }
 
         if (!browser) {
-            log("Launching new Chromium instance...");
+            const executablePath = process.env.CHROMIUM_PATH || await chromium.executablePath();
+            log(`Launching Chromium from: ${executablePath}`);
+
             browser = await puppeteer.launch({
                 args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox"],
                 defaultViewport: chromium.defaultViewport,
-                executablePath: await chromium.executablePath(),
+                executablePath: executablePath,
                 headless: chromium.headless,
                 ignoreHTTPSErrors: true,
             });

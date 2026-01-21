@@ -1,6 +1,8 @@
 # PDFGenAI
 
 AI-powered PDF generation platform with template management, OAuth 2.0 authentication, and Model Context Protocol (MCP) integration for AI assistants.
+ 
+![](./public/editor.png)
 
 ## Features
 

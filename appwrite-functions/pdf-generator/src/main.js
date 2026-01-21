@@ -1,4 +1,5 @@
-import { Client, Databases, Storage, ID, InputFile } from 'node-appwrite';
+import { Client, Databases, Storage, ID } from 'node-appwrite';
+import { InputFile } from 'node-appwrite/file';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
 import Handlebars from 'handlebars';

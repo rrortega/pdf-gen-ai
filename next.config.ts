@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
-    // ppr: 'incremental', // Merged into cacheComponents
+    // dynamicIO: true, 
   },
   cacheComponents: true,
 };

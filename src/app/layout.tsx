@@ -13,7 +13,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const domain = process.env.NEXT_PUBLIC_DOMAIN || "https://pdfgen.ai";
+const rawDomain = process.env.NEXT_PUBLIC_DOMAIN || "https://pdf.chamba.pro";
+const domain = rawDomain.startsWith("http") ? rawDomain : `https://${rawDomain}`;
+
+console.log(`[RootLayout] Using domain: ${domain}`);
 
 export const metadata: Metadata = {
   title: {

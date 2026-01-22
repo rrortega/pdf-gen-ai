@@ -188,7 +188,15 @@ const main = async ({ req, res, log, error }) => {
 
             compiledTemplate = {
                 render: Handlebars.compile(template.html || ""),
-                css: template.css || ""
+                css: template.css || "",
+                settings: {
+                    paper_size: template.paper_size,
+                    orientation: template.orientation,
+                    margin_top: template.margin_top,
+                    margin_right: template.margin_right,
+                    margin_bottom: template.margin_bottom,
+                    margin_left: template.margin_left,
+                }
             };
             TEMPLATE_CACHE.set(payload.template_id, compiledTemplate);
         }
@@ -229,14 +237,14 @@ const main = async ({ req, res, log, error }) => {
         await page.evaluate(() => document.fonts ? document.fonts.ready : Promise.resolve());
 
         const pdfBuffer = await page.pdf({
-            format: template.paper_size || 'A4',
-            landscape: template.orientation === 'landscape',
+            format: compiledTemplate.settings.paper_size || 'A4',
+            landscape: compiledTemplate.settings.orientation === 'landscape',
             printBackground: true,
             margin: {
-                top: template.margin_top || '10mm',
-                right: template.margin_right || '10mm',
-                bottom: template.margin_bottom || '10mm',
-                left: template.margin_left || '10mm'
+                top: compiledTemplate.settings.margin_top || '10mm',
+                right: compiledTemplate.settings.margin_right || '10mm',
+                bottom: compiledTemplate.settings.margin_bottom || '10mm',
+                left: compiledTemplate.settings.margin_left || '10mm'
             }
         });
 

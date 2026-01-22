@@ -28,6 +28,7 @@ export async function getCachedDocuments(userId: string, sessionSecret: string, 
         COLLECTIONS.DOCUMENTS,
         [
             Query.equal("user_id", userId),
+            Query.notEqual("status", "trashed"),
             Query.orderDesc("$createdAt"),
             Query.limit(limit),
             Query.offset(offset),

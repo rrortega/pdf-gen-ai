@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import {
     DATABASE_ID,
     COLLECTIONS,
@@ -121,6 +122,9 @@ export async function POST(request: NextRequest) {
                     Permission.delete(Role.user(user.id)),
                 ]
             });
+
+            // Invalidate document list cache and trigger UI refresh
+            revalidatePath("/documents", "page");
 
             if (webhook_callback) {
                 // Return immediately
@@ -392,6 +396,9 @@ export async function POST(request: NextRequest) {
                         Permission.delete(Role.user(user.id)),
                     ]
                 });
+
+                // Invalidate document list cache and trigger UI refresh
+                revalidatePath("/documents", "page");
 
                 return NextResponse.json({
                     success: true,

@@ -229,9 +229,15 @@ const main = async ({ req, res, log, error }) => {
         await page.evaluate(() => document.fonts ? document.fonts.ready : Promise.resolve());
 
         const pdfBuffer = await page.pdf({
-            format: 'A4',
+            format: template.paper_size || 'A4',
+            landscape: template.orientation === 'landscape',
             printBackground: true,
-            margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
+            margin: {
+                top: template.margin_top || '10mm',
+                right: template.margin_right || '10mm',
+                bottom: template.margin_bottom || '10mm',
+                left: template.margin_left || '10mm'
+            }
         });
 
         // 5. Success Flow

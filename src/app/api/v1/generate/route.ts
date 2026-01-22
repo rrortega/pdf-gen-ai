@@ -256,6 +256,16 @@ export async function POST(request: NextRequest) {
                         templateCss,
                         inputData || {},
                         `${name}.pdf`,
+                        {
+                            orientation: template.orientation,
+                            paperSize: template.paper_size,
+                            margins: {
+                                top: template.margin_top || "10mm",
+                                right: template.margin_right || "10mm",
+                                bottom: template.margin_bottom || "10mm",
+                                left: template.margin_left || "10mm",
+                            }
+                        }
                     );
 
                     const secret = encoder.encode(JWT_SECRET);
@@ -366,6 +376,16 @@ export async function POST(request: NextRequest) {
                     templateCss,
                     inputData || {},
                     `${name}.pdf`,
+                    {
+                        orientation: template.orientation,
+                        paperSize: template.paper_size,
+                        margins: {
+                            top: template.margin_top || "10mm",
+                            right: template.margin_right || "10mm",
+                            bottom: template.margin_bottom || "10mm",
+                            left: template.margin_left || "10mm",
+                        }
+                    }
                 );
 
                 const download_id = ID.unique();

@@ -1,4 +1,4 @@
-import { Client, Databases } from 'node-appwrite';
+import { Client, TablesDB } from 'node-appwrite';
 
 /**
  * Appwrite Function: Webhook Handler
@@ -12,11 +12,12 @@ export default async ({ req, res, log, error }) => {
     const API_KEY = process.env.APPWRITE_API_KEY;
     const ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
     const PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-    const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+    const db = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
     const WEBHOOKS_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_WEBHOOK_COLLECTION_ID || "webhooks";
     const DOCUMENTS_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_DOCUMENTS_COLLECTION_ID || "documents";
+    const MAX_RETRIES = parseInt(process.env.WEBHOOK_MAXIMUM_RETRY || "3", 10);
 
-    if (!API_KEY || !PROJECT_ID || !DATABASE_ID) {
+    if (!API_KEY || !PROJECT_ID || !db) {
         error("Missing required environment variables.");
         return res.json({ success: false, error: "Configuration error" }, 500);
     }
@@ -27,12 +28,10 @@ export default async ({ req, res, log, error }) => {
         .setProject(PROJECT_ID)
         .setKey(API_KEY);
 
-    const db = new Databases(client);
+    const tables = new TablesDB(client);
 
     try {
         // 2. Parse Payload from Event
-        // This function is intended to be triggered by: 
-        // databases.[DATABASE_ID].collections.[WEBHOOKS_COLLECTION_ID].documents.[DOCUMENT_ID].create
         let document = req.body;
         if (typeof document === 'string') {
             try { document = JSON.parse(document); } catch { }
@@ -45,9 +44,34 @@ export default async ({ req, res, log, error }) => {
 
         const webhookId = document.$id;
         const targetUrl = document.url;
-        const payloadData = document.payload; // Should be a JSON string as per pdf-generator
+        const payloadData = document.payload;
+        const currentRetry = document.retry || 0;
+        const currentStatus = document.status || 'pending';
 
-        log(`Delivering webhook ${webhookId} to: ${targetUrl}`);
+        // GUARD: Check if we should process
+        if (currentStatus === 'delivered' || currentStatus === 'failed') {
+            log(`Webhook ${webhookId} already in final state: ${currentStatus}. Skipping.`);
+            return res.json({ success: true, message: `Skipped: Status is ${currentStatus}` });
+        }
+
+        if (currentRetry >= MAX_RETRIES) {
+            log(`Webhook ${webhookId} has reached max retries (${currentRetry}/${MAX_RETRIES}). Marking as failed.`);
+            await tables.updateRow({
+                databaseId: db,
+                tableId: WEBHOOKS_COLLECTION_ID,
+                rowId: webhookId,
+                data: { status: 'failed' }
+            });
+            return res.json({ success: false, error: "Max retries reached" });
+        }
+
+        // New Requirement: Delay for retries
+        if (currentRetry > 0) {
+            log(`Retry attempt #${currentRetry}. Waiting 30 seconds before delivery...`);
+            await new Promise(resolve => setTimeout(resolve, 30000));
+        }
+
+        log(`Delivering webhook ${webhookId} to: ${targetUrl} (Attempt ${currentRetry + 1}/${MAX_RETRIES})`);
 
         const startTime = Date.now();
         let responseData = null;
@@ -64,7 +88,6 @@ export default async ({ req, res, log, error }) => {
                     'X-PDFGenAI-Webhook-Id': webhookId
                 },
                 body: payloadData,
-                // Timeout after 30 seconds
                 signal: AbortSignal.timeout(30000)
             });
 
@@ -72,12 +95,11 @@ export default async ({ req, res, log, error }) => {
             success = response.ok;
 
             try {
-                // Try to parse as JSON, otherwise get text
                 const text = await response.text();
                 try {
                     responseData = JSON.parse(text);
                 } catch {
-                    responseData = text.slice(0, 1000); // Truncate long non-JSON responses
+                    responseData = text.slice(0, 1000);
                 }
             } catch {
                 responseData = "No response body";
@@ -94,42 +116,55 @@ export default async ({ req, res, log, error }) => {
         const executionTime = Date.now() - startTime;
         const responseString = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData);
 
-        // 4. Update Webhook Record with Result
-        await db.updateDocument(
-            DATABASE_ID,
-            WEBHOOKS_COLLECTION_ID,
-            webhookId,
-            {
+        // 4. Update Webhook Record
+        const nextRetry = currentRetry + 1;
+        let finalStatus = currentStatus;
+
+        if (success) {
+            finalStatus = 'delivered';
+        } else if (nextRetry >= MAX_RETRIES) {
+            finalStatus = 'failed';
+        } else {
+            finalStatus = 'pending'; // Keep as pending for next trigger
+        }
+
+        await tables.updateRow({
+            databaseId: db,
+            tableId: WEBHOOKS_COLLECTION_ID,
+            rowId: webhookId,
+            data: {
                 response: responseString,
                 execution_time: executionTime,
-                status: success ? 'delivered' : 'failed'
+                status: finalStatus,
+                retry: nextRetry
             }
-        );
+        });
 
         // 5. Update Original Document Record
         if (document.document_id) {
             try {
-                await db.updateDocument(
-                    DATABASE_ID,
-                    DOCUMENTS_COLLECTION_ID,
-                    document.document_id,
-                    {
+                await tables.updateRow({
+                    databaseId: db,
+                    tableId: DOCUMENTS_COLLECTION_ID,
+                    rowId: document.document_id,
+                    data: {
                         webhook_response: responseString,
-                        webhook_retry: (document.retry || 0) + 1
+                        webhook_retry: nextRetry
                     }
-                );
+                });
                 log(`Document ${document.document_id} updated with webhook result.`);
             } catch (docErr) {
                 error(`Failed to update document ${document.document_id}: ${docErr.message}`);
             }
         }
 
-        log(`Webhook record updated. Execution time: ${executionTime}ms`);
+        log(`Webhook record updated to ${finalStatus}. Execution time: ${executionTime}ms`);
 
         return res.json({
             success: success,
             status: statusCode,
-            execution_time: executionTime
+            execution_time: executionTime,
+            final_status: finalStatus
         });
 
     } catch (err) {

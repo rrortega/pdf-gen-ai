@@ -1,4 +1,4 @@
-import { Client, Databases, Storage, ID } from 'node-appwrite';
+import { Client, TablesDB, Storage, ID } from 'node-appwrite';
 import { InputFile } from 'node-appwrite/file';
 import puppeteer from 'puppeteer-core';
 import Handlebars from 'handlebars';
@@ -103,22 +103,24 @@ function registerHbsHelpers() {
     });
 }
 
-const createWebhookRecord = async (db, databaseId, collectionId, download_id, url, payload, log, error) => {
+const createWebhookRecord = async (tables, db, collectionId, download_id, url, payload, log, error) => {
     if (!url) return;
     try {
         log(`Creating webhook record for: ${url}`);
-        await db.createDocument(
-            databaseId,
-            collectionId,
-            ID.unique(),
-            {
+        await tables.createRow({
+            databaseId: db,
+            tableId: collectionId,
+            rowId: ID.unique(),
+            data: {
                 document_id: download_id,
                 url: url,
                 retry: 0,
+                status: "pending",
                 response: null,
                 payload: typeof payload === 'object' ? JSON.stringify(payload) : payload,
                 execution_time: 0
             }
+        }
         );
         log('Webhook record created successfully.');
     } catch (err) {
@@ -131,7 +133,7 @@ const main = async ({ req, res, log, error }) => {
     const API_KEY = process.env.APPWRITE_API_KEY;
     const ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
     const PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-    const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+    const db = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
     const TEMPLATES_ID = process.env.NEXT_PUBLIC_APPWRITE_TEMPLATES_COLLECTION_ID || "templates";
     const DOCUMENTS_ID = process.env.NEXT_PUBLIC_APPWRITE_DOCUMENTS_COLLECTION_ID || "documents";
     const WEBHOOKS_ID = process.env.NEXT_PUBLIC_APPWRITE_WEBHOOK_COLLECTION_ID || "webhooks"; // New table
@@ -143,7 +145,7 @@ const main = async ({ req, res, log, error }) => {
 
     // Webhook and Project configuration
 
-    if (!API_KEY || !PROJECT_ID || !DATABASE_ID || !JWT_SECRET) {
+    if (!API_KEY || !PROJECT_ID || !db || !JWT_SECRET) {
         error("Missing required environment variables.");
         return res.json({ success: false, error: "Configuration error" }, 500);
     }
@@ -154,7 +156,7 @@ const main = async ({ req, res, log, error }) => {
         .setProject(PROJECT_ID)
         .setKey(API_KEY);
 
-    const db = new Databases(client);
+    const tables = new TablesDB(client);
     const storage = new Storage(client);
 
     try {
@@ -187,7 +189,11 @@ const main = async ({ req, res, log, error }) => {
         log(`Starting generation for Document ${download_id} (Template: ${templateId})...`);
 
         // 3. Fetch Template
-        const template = await db.getDocument(DATABASE_ID, TEMPLATES_ID, templateId);
+        const template = await tables.getRow({
+            databaseId: db,
+            tableId: TEMPLATES_ID,
+            rowId: templateId
+        });
         if (!template) {
             throw new Error(`Template ${templateId} not found`);
         }
@@ -222,203 +228,202 @@ const main = async ({ req, res, log, error }) => {
         let browser = null;
 
         try {
-            try {
-                browser = await puppeteer.launch({
-                    executablePath: chromiumPath,
-                    headless: true,
-                    ignoreHTTPSErrors: true,
-                    args: [
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--no-zygote',
-                        '--disable-gpu',
-                        '--single-process',
-                    ],
-                });
-                log("Browser launched successfully.");
-                log('Browser version: ' + await browser.version());
-            } catch (launchErr) {
-                error(`CRITICAL: Browser launch failed: ${launchErr.message}`);
-                throw launchErr;
-            }
+            browser = await puppeteer.launch({
+                executablePath: chromiumPath,
+                headless: true,
+                ignoreHTTPSErrors: true,
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--no-zygote',
+                    '--disable-gpu',
+                    '--single-process',
+                ],
+            });
+            log("Browser launched successfully.");
+            log('Browser version: ' + await browser.version());
+        } catch (launchErr) {
+            error(`CRITICAL: Browser launch failed: ${launchErr.message}`);
+            throw launchErr;
+        }
 
-            const page = await browser.newPage();
-            let pdfBuffer;
+        const page = await browser.newPage();
+        let pdfBuffer;
 
-            try {
-                // SECURITY: Enable Request Interception to block SSRF
-                await page.setRequestInterception(true);
-                page.on('request', request => {
-                    const url = request.url();
+        try {
+            // SECURITY: Enable Request Interception to block SSRF
+            await page.setRequestInterception(true);
+            page.on('request', request => {
+                const url = request.url();
 
-                    if (url.startsWith('data:') || url === 'about:blank') {
-                        request.continue();
-                        return;
-                    }
+                if (url.startsWith('data:') || url === 'about:blank') {
+                    request.continue();
+                    return;
+                }
 
-                    if (url.startsWith('file:')) {
+                if (url.startsWith('file:')) {
+                    request.abort('accessdenied');
+                    return;
+                }
+
+                try {
+                    const parsed = new URL(url);
+                    const hostname = parsed.hostname;
+
+                    if (
+                        hostname === 'localhost' ||
+                        hostname === '::1' ||
+                        hostname === '0.0.0.0' ||
+                        hostname.startsWith('127.') ||
+                        hostname.startsWith('10.') ||
+                        hostname.startsWith('192.168.') ||
+                        hostname.startsWith('169.254.')
+                    ) {
+                        log(`Blocked SSRF attempt to: ${url}`);
                         request.abort('accessdenied');
                         return;
                     }
 
-                    try {
-                        const parsed = new URL(url);
-                        const hostname = parsed.hostname;
-
-                        if (
-                            hostname === 'localhost' ||
-                            hostname === '::1' ||
-                            hostname === '0.0.0.0' ||
-                            hostname.startsWith('127.') ||
-                            hostname.startsWith('10.') ||
-                            hostname.startsWith('192.168.') ||
-                            hostname.startsWith('169.254.')
-                        ) {
-                            log(`Blocked SSRF attempt to: ${url}`);
-                            request.abort('accessdenied');
-                            return;
-                        }
-
-                        if (hostname.startsWith('172.')) {
-                            const parts = hostname.split('.');
-                            if (parts.length === 4) {
-                                const second = parseInt(parts[1], 10);
-                                if (second >= 16 && second <= 31) {
-                                    log(`Blocked SSRF attempt to: ${url}`);
-                                    request.abort('accessdenied');
-                                    return;
-                                }
+                    if (hostname.startsWith('172.')) {
+                        const parts = hostname.split('.');
+                        if (parts.length === 4) {
+                            const second = parseInt(parts[1], 10);
+                            if (second >= 16 && second <= 31) {
+                                log(`Blocked SSRF attempt to: ${url}`);
+                                request.abort('accessdenied');
+                                return;
                             }
                         }
-
-                        request.continue();
-                    } catch {
-                        request.abort();
                     }
-                });
 
-                await page.setContent(fullHtml, {
-                    waitUntil: 'domcontentloaded',
-                    timeout: 60000
-                });
-
-                // Wait for fonts to be ready
-                await page.evaluate(() => document.fonts ? document.fonts.ready : Promise.resolve());
-
-                // Small settle delay
-                await new Promise(resolve => setTimeout(resolve, 300));
-
-                pdfBuffer = await page.pdf({
-                    format: 'A4',
-                    printBackground: true,
-                    margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
-                    timeout: 60000
-                });
-            } finally {
-                // ALWAYS close browser and page to prevent connection leaks
-                log("Closing page and browser...");
-                try { await page.close(); } catch { }
-                try { await browser.close(); } catch { }
-                log("Browser closed.");
-            }
-
-            log(`PDF Generated. Size: ${pdfBuffer.length} bytes.`);
-
-            // 6. Upload to Storage
-            const fileId = ID.unique();
-            await storage.createFile(
-                PDF_BUCKET_ID,
-                fileId,
-                InputFile.fromBuffer(pdfBuffer, `${name}.pdf`)
-            );
-            log(`PDF Uploaded: ${fileId}`);
-
-            // 7. Generate Signature
-            const secret = new TextEncoder().encode(JWT_SECRET);
-            const signature = await new SignJWT({ userId: userId, download_id: download_id })
-                .setProtectedHeader({ alg: "HS256" })
-                .setIssuedAt()
-                .sign(secret);
-
-            // 8. Update Document
-            const sizeInKb = Math.round(pdfBuffer.length / 1024);
-
-            await db.updateDocument(
-                DATABASE_ID,
-                DOCUMENTS_ID,
-                download_id,
-                {
-                    status: 'completed',
-                    pdf_file: fileId,
-                    size: sizeInKb,
-                    signature: signature
+                    request.continue();
+                } catch {
+                    request.abort();
                 }
-            );
-            log(`Document ${download_id} updated to 'completed'.`);
-
-            // 9. NEW: Create Webhook Record (Success)
-            if (webhookCallback) {
-                const webhookData = {
-                    success: true,
-                    download_id: download_id,
-                    status: "completed",
-                    download_url: `${ENDPOINT.replace('/v1', '')}/storage/buckets/${PDF_BUCKET_ID}/files/${fileId}/view?project=${PROJECT_ID}`,
-                    name: name,
-                    size: sizeInKb
-                };
-                await createWebhookRecord(db, DATABASE_ID, WEBHOOKS_ID, download_id, webhookCallback, webhookData, log, error);
-            }
-
-            return res.json({
-                success: true,
-                download_id: download_id,
-                fileId: fileId,
-                size: sizeInKb
             });
 
-        } catch (err) {
-            error(`Error generating PDF for ${req.body?.$id || 'unknown'}: ${err.message}`);
+            await page.setContent(fullHtml, {
+                waitUntil: 'domcontentloaded',
+                timeout: 60000
+            });
 
-            // Attempt to mark as failed if we have an ID
-            if (req.body?.$id) {
+            // Wait for fonts to be ready
+            await page.evaluate(() => document.fonts ? document.fonts.ready : Promise.resolve());
 
-                // Re-extract webhook callback
-                let payload = req.body;
-                if (typeof payload === 'string') {
-                    try { payload = JSON.parse(payload); } catch { }
-                }
-                const webhookCallback = payload?.webhook_callback;
+            // Small settle delay
+            await new Promise(resolve => setTimeout(resolve, 300));
 
-                // Send Failure Webhook via DB Record
-                if (webhookCallback) {
-                    const failureData = {
-                        success: false,
-                        download_id: req.body.$id,
-                        status: "failed",
-                        error: err.message
-                    };
-                    await createWebhookRecord(db, DATABASE_ID, WEBHOOKS_ID, req.body.$id, webhookCallback, failureData, log, error);
-                }
+            pdfBuffer = await page.pdf({
+                format: 'A4',
+                printBackground: true,
+                margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+                timeout: 60000
+            });
+        } finally {
+            // ALWAYS close browser and page to prevent connection leaks
+            log("Closing page and browser...");
+            try { await page.close(); } catch { }
+            try { await browser.close(); } catch { }
+            log("Browser closed.");
+        }
 
-                try {
-                    await db.updateDocument(
-                        DATABASE_ID,
-                        DOCUMENTS_ID,
-                        req.body.$id,
-                        {
-                            status: 'failed',
-                            error_message: err.message
-                        }
-                    );
-                } catch (updateErr) {
-                    error(`Failed to update status to failed: ${updateErr.message}`);
-                }
+        log(`PDF Generated. Size: ${pdfBuffer.length} bytes.`);
+
+        // 6. Upload to Storage
+        const fileId = ID.unique();
+        await storage.createFile(
+            PDF_BUCKET_ID,
+            fileId,
+            InputFile.fromBuffer(pdfBuffer, `${name}.pdf`)
+        );
+        log(`PDF Uploaded: ${fileId}`);
+
+        // 7. Generate Signature
+        const secret = new TextEncoder().encode(JWT_SECRET);
+        const signature = await new SignJWT({ userId: userId, download_id: download_id })
+            .setProtectedHeader({ alg: "HS256" })
+            .setIssuedAt()
+            .sign(secret);
+
+        // 8. Update Document
+        const sizeInKb = Math.round(pdfBuffer.length / 1024);
+
+        await tables.updateRow({
+            databaseId: db,
+            tableId: DOCUMENTS_ID,
+            rowId: download_id,
+            data: {
+                status: 'completed',
+                pdf_file: fileId,
+                size: sizeInKb,
+                signature: signature
+            }
+        });
+        log(`Document ${download_id} updated to 'completed'.`);
+
+        // 9. NEW: Create Webhook Record (Success)
+        if (webhookCallback) {
+            const webhookData = {
+                success: true,
+                download_id: download_id,
+                status: "completed",
+                download_url: `${ENDPOINT.replace('/v1', '')}/storage/buckets/${PDF_BUCKET_ID}/files/${fileId}/view?project=${PROJECT_ID}`,
+                name: name,
+                size: sizeInKb
+            };
+            await createWebhookRecord(tables, db, WEBHOOKS_ID, download_id, webhookCallback, webhookData, log, error);
+        }
+
+        return res.json({
+            success: true,
+            download_id: download_id,
+            fileId: fileId,
+            size: sizeInKb
+        });
+
+    } catch (err) {
+        error(`Error generating PDF for ${req.body?.$id || 'unknown'}: ${err.message}`);
+
+        // Attempt to mark as failed if we have an ID
+        if (req.body?.$id) {
+
+            // Re-extract webhook callback
+            let payload = req.body;
+            if (typeof payload === 'string') {
+                try { payload = JSON.parse(payload); } catch { }
+            }
+            const webhookCallback = payload?.webhook_callback;
+
+            // Send Failure Webhook via DB Record
+            if (webhookCallback) {
+                const failureData = {
+                    success: false,
+                    download_id: req.body.$id,
+                    status: "failed",
+                    error: err.message
+                };
+                await createWebhookRecord(tables, db, WEBHOOKS_ID, req.body.$id, webhookCallback, failureData, log, error);
             }
 
-            // Errors handled, ensure we don't leave zombie processes
-            return res.json({ success: false, error: err.message }, 500);
+            try {
+                await tables.updateRow({
+                    databaseId: db,
+                    tableId: DOCUMENTS_ID,
+                    rowId: req.body.$id,
+                    data: {
+                        status: 'failed',
+                        error_message: err.message
+                    }
+                });
+            } catch (updateErr) {
+                error(`Failed to update status to failed: ${updateErr.message}`);
+            }
         }
-    };
 
-    export default main;
+        // Errors handled, ensure we don't leave zombie processes
+        return res.json({ success: false, error: err.message }, 500);
+    }
+};
+
+export default main;

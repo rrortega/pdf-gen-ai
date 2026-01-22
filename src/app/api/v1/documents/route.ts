@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       tableId: COLLECTIONS.DOCUMENTS,
       queries: [
         Query.equal("user_id", user.id),
+        Query.notEqual("status", "trashed"),
         Query.orderDesc("$createdAt"),
         Query.limit(limit),
         Query.offset(offset),

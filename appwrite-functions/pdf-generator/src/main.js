@@ -1,6 +1,5 @@
 import { Client, Databases, Storage, ID } from 'node-appwrite';
 import { InputFile } from 'node-appwrite/file';
-import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
 import Handlebars from 'handlebars';
 import { SignJWT } from 'jose';
@@ -103,9 +102,6 @@ function registerHbsHelpers() {
         return format.replace(/%[mYdHMSy]/g, (match) => map[match] || match);
     });
 }
-
-// Global browser instance for reuse
-let browser = null;
 
 const createWebhookRecord = async (db, databaseId, collectionId, download_id, url, payload, log, error) => {
     if (!url) return;
@@ -219,196 +215,210 @@ const main = async ({ req, res, log, error }) => {
         <body>${htmlContent}</body>
         </html>`;
 
-        // Launch Browser Logic (Optimized for Reuse)
-        // Check if browser exists and is connected
-        if (browser && !browser.isConnected()) {
-            log("Browser disconnected, closing old instance...");
-            try { await browser.close(); } catch { }
-            browser = null;
-        }
-
-        if (!browser) {
-            log(`Launching Chromium via @sparticuz/chromium...`);
-
-            browser = await puppeteer.launch({
-                args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-                defaultViewport: chromium.defaultViewport,
-                executablePath: await chromium.executablePath(),
-                headless: chromium.headless,
-                ignoreHTTPSErrors: true,
-            });
-        } else {
-            log("Reusing existing Chromium instance.");
-        }
-
-        const page = await browser.newPage();
-        let pdfBuffer;
+        // Launch Browser (Fresh instance for reliability in Appwrite runtime)
+        // Launch Browser
+        const chromiumPath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser';
+        log(`Launching Chromium at: ${chromiumPath}`);
+        let browser = null;
 
         try {
-            // SECURITY: Enable Request Interception to block SSRF
-            await page.setRequestInterception(true);
-            page.on('request', request => {
-                const url = request.url();
+            try {
+                browser = await puppeteer.launch({
+                    executablePath: chromiumPath,
+                    headless: true,
+                    ignoreHTTPSErrors: true,
+                    args: [
+                        '--no-sandbox',
+                        '--disable-setuid-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--no-zygote',
+                        '--disable-gpu',
+                        '--single-process',
+                    ],
+                });
+                log("Browser launched successfully.");
+                log('Browser version: ' + await browser.version());
+            } catch (launchErr) {
+                error(`CRITICAL: Browser launch failed: ${launchErr.message}`);
+                throw launchErr;
+            }
 
-                if (url.startsWith('data:') || url === 'about:blank') {
-                    request.continue();
-                    return;
-                }
+            const page = await browser.newPage();
+            let pdfBuffer;
 
-                if (url.startsWith('file:')) {
-                    request.abort('accessdenied');
-                    return;
-                }
+            try {
+                // SECURITY: Enable Request Interception to block SSRF
+                await page.setRequestInterception(true);
+                page.on('request', request => {
+                    const url = request.url();
 
-                try {
-                    const parsed = new URL(url);
-                    const hostname = parsed.hostname;
+                    if (url.startsWith('data:') || url === 'about:blank') {
+                        request.continue();
+                        return;
+                    }
 
-                    if (
-                        hostname === 'localhost' ||
-                        hostname === '::1' ||
-                        hostname === '0.0.0.0' ||
-                        hostname.startsWith('127.') ||
-                        hostname.startsWith('10.') ||
-                        hostname.startsWith('192.168.') ||
-                        hostname.startsWith('169.254.')
-                    ) {
-                        log(`Blocked SSRF attempt to: ${url}`);
+                    if (url.startsWith('file:')) {
                         request.abort('accessdenied');
                         return;
                     }
 
-                    if (hostname.startsWith('172.')) {
-                        const parts = hostname.split('.');
-                        if (parts.length === 4) {
-                            const second = parseInt(parts[1], 10);
-                            if (second >= 16 && second <= 31) {
-                                log(`Blocked SSRF attempt to: ${url}`);
-                                request.abort('accessdenied');
-                                return;
+                    try {
+                        const parsed = new URL(url);
+                        const hostname = parsed.hostname;
+
+                        if (
+                            hostname === 'localhost' ||
+                            hostname === '::1' ||
+                            hostname === '0.0.0.0' ||
+                            hostname.startsWith('127.') ||
+                            hostname.startsWith('10.') ||
+                            hostname.startsWith('192.168.') ||
+                            hostname.startsWith('169.254.')
+                        ) {
+                            log(`Blocked SSRF attempt to: ${url}`);
+                            request.abort('accessdenied');
+                            return;
+                        }
+
+                        if (hostname.startsWith('172.')) {
+                            const parts = hostname.split('.');
+                            if (parts.length === 4) {
+                                const second = parseInt(parts[1], 10);
+                                if (second >= 16 && second <= 31) {
+                                    log(`Blocked SSRF attempt to: ${url}`);
+                                    request.abort('accessdenied');
+                                    return;
+                                }
                             }
                         }
+
+                        request.continue();
+                    } catch {
+                        request.abort();
                     }
+                });
 
-                    request.continue();
-                } catch {
-                    request.abort();
-                }
-            });
+                await page.setContent(fullHtml, {
+                    waitUntil: 'domcontentloaded',
+                    timeout: 60000
+                });
 
-            await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+                // Wait for fonts to be ready
+                await page.evaluate(() => document.fonts ? document.fonts.ready : Promise.resolve());
 
-            pdfBuffer = await page.pdf({
-                format: 'A4',
-                printBackground: true,
-                margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
-            });
-        } finally {
-            // ALWAYS close the page to free RAM, but keep browser open
-            await page.close();
-        }
+                // Small settle delay
+                await new Promise(resolve => setTimeout(resolve, 300));
 
-        log(`PDF Generated. Size: ${pdfBuffer.length} bytes.`);
-
-        // 6. Upload to Storage
-        const fileId = ID.unique();
-        await storage.createFile(
-            PDF_BUCKET_ID,
-            fileId,
-            InputFile.fromBuffer(pdfBuffer, `${name}.pdf`)
-        );
-        log(`PDF Uploaded: ${fileId}`);
-
-        // 7. Generate Signature
-        const secret = new TextEncoder().encode(JWT_SECRET);
-        const signature = await new SignJWT({ userId: userId, download_id: download_id })
-            .setProtectedHeader({ alg: "HS256" })
-            .setIssuedAt()
-            .sign(secret);
-
-        // 8. Update Document
-        const sizeInKb = Math.round(pdfBuffer.length / 1024);
-
-        await db.updateDocument(
-            DATABASE_ID,
-            DOCUMENTS_ID,
-            download_id,
-            {
-                status: 'completed',
-                pdf_file: fileId,
-                size: sizeInKb,
-                signature: signature
+                pdfBuffer = await page.pdf({
+                    format: 'A4',
+                    printBackground: true,
+                    margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+                    timeout: 60000
+                });
+            } finally {
+                // ALWAYS close browser and page to prevent connection leaks
+                log("Closing page and browser...");
+                try { await page.close(); } catch { }
+                try { await browser.close(); } catch { }
+                log("Browser closed.");
             }
-        );
-        log(`Document ${download_id} updated to 'completed'.`);
 
-        // 9. NEW: Create Webhook Record (Success)
-        if (webhookCallback) {
-            const webhookData = {
+            log(`PDF Generated. Size: ${pdfBuffer.length} bytes.`);
+
+            // 6. Upload to Storage
+            const fileId = ID.unique();
+            await storage.createFile(
+                PDF_BUCKET_ID,
+                fileId,
+                InputFile.fromBuffer(pdfBuffer, `${name}.pdf`)
+            );
+            log(`PDF Uploaded: ${fileId}`);
+
+            // 7. Generate Signature
+            const secret = new TextEncoder().encode(JWT_SECRET);
+            const signature = await new SignJWT({ userId: userId, download_id: download_id })
+                .setProtectedHeader({ alg: "HS256" })
+                .setIssuedAt()
+                .sign(secret);
+
+            // 8. Update Document
+            const sizeInKb = Math.round(pdfBuffer.length / 1024);
+
+            await db.updateDocument(
+                DATABASE_ID,
+                DOCUMENTS_ID,
+                download_id,
+                {
+                    status: 'completed',
+                    pdf_file: fileId,
+                    size: sizeInKb,
+                    signature: signature
+                }
+            );
+            log(`Document ${download_id} updated to 'completed'.`);
+
+            // 9. NEW: Create Webhook Record (Success)
+            if (webhookCallback) {
+                const webhookData = {
+                    success: true,
+                    download_id: download_id,
+                    status: "completed",
+                    download_url: `${ENDPOINT.replace('/v1', '')}/storage/buckets/${PDF_BUCKET_ID}/files/${fileId}/view?project=${PROJECT_ID}`,
+                    name: name,
+                    size: sizeInKb
+                };
+                await createWebhookRecord(db, DATABASE_ID, WEBHOOKS_ID, download_id, webhookCallback, webhookData, log, error);
+            }
+
+            return res.json({
                 success: true,
                 download_id: download_id,
-                status: "completed",
-                download_url: `${ENDPOINT.replace('/v1', '')}/storage/buckets/${PDF_BUCKET_ID}/files/${fileId}/view?project=${PROJECT_ID}`,
-                name: name,
+                fileId: fileId,
                 size: sizeInKb
-            };
-            await createWebhookRecord(db, DATABASE_ID, WEBHOOKS_ID, download_id, webhookCallback, webhookData, log, error);
-        }
+            });
 
-        return res.json({
-            success: true,
-            download_id: download_id,
-            fileId: fileId,
-            size: sizeInKb
-        });
+        } catch (err) {
+            error(`Error generating PDF for ${req.body?.$id || 'unknown'}: ${err.message}`);
 
-    } catch (err) {
-        error(`Error generating PDF for ${req.body?.$id || 'unknown'}: ${err.message}`);
+            // Attempt to mark as failed if we have an ID
+            if (req.body?.$id) {
 
-        // Attempt to mark as failed if we have an ID
-        if (req.body?.$id) {
+                // Re-extract webhook callback
+                let payload = req.body;
+                if (typeof payload === 'string') {
+                    try { payload = JSON.parse(payload); } catch { }
+                }
+                const webhookCallback = payload?.webhook_callback;
 
-            // Re-extract webhook callback
-            let payload = req.body;
-            if (typeof payload === 'string') {
-                try { payload = JSON.parse(payload); } catch { }
+                // Send Failure Webhook via DB Record
+                if (webhookCallback) {
+                    const failureData = {
+                        success: false,
+                        download_id: req.body.$id,
+                        status: "failed",
+                        error: err.message
+                    };
+                    await createWebhookRecord(db, DATABASE_ID, WEBHOOKS_ID, req.body.$id, webhookCallback, failureData, log, error);
+                }
+
+                try {
+                    await db.updateDocument(
+                        DATABASE_ID,
+                        DOCUMENTS_ID,
+                        req.body.$id,
+                        {
+                            status: 'failed',
+                            error_message: err.message
+                        }
+                    );
+                } catch (updateErr) {
+                    error(`Failed to update status to failed: ${updateErr.message}`);
+                }
             }
-            const webhookCallback = payload?.webhook_callback;
 
-            // Send Failure Webhook via DB Record
-            if (webhookCallback) {
-                const failureData = {
-                    success: false,
-                    download_id: req.body.$id,
-                    status: "failed",
-                    error: err.message
-                };
-                await createWebhookRecord(db, DATABASE_ID, WEBHOOKS_ID, req.body.$id, webhookCallback, failureData, log, error);
-            }
-
-            try {
-                await db.updateDocument(
-                    DATABASE_ID,
-                    DOCUMENTS_ID,
-                    req.body.$id,
-                    {
-                        status: 'failed',
-                        error_message: err.message
-                    }
-                );
-            } catch (updateErr) {
-                error(`Failed to update status to failed: ${updateErr.message}`);
-            }
+            // Errors handled, ensure we don't leave zombie processes
+            return res.json({ success: false, error: err.message }, 500);
         }
+    };
 
-        // If generic error, maybe close browser to reset state for next run
-        if (err.message.includes("Protocol error") || err.message.includes("Target closed")) {
-            if (browser) await browser.close();
-            browser = null;
-        }
-
-        return res.json({ success: false, error: err.message }, 500);
-    }
-};
-
-export default main;
+    export default main;

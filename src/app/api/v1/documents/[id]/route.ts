@@ -121,13 +121,17 @@ export async function DELETE(
       }
     }
 
-    await tables.deleteRow({
+    await tables.updateRow({
       databaseId: DATABASE_ID,
       tableId: COLLECTIONS.DOCUMENTS,
-      rowId: id
+      rowId: id,
+      data: {
+        status: "trashed",
+        pdf_file: null
+      }
     });
 
-    return NextResponse.json({ success: true, message: "Document deleted" });
+    return NextResponse.json({ success: true, message: "Document trashed and file removed" });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Failed to delete document";
     return NextResponse.json({ error: errorMessage }, { status: 500 });

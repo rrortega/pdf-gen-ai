@@ -6,6 +6,7 @@ import { Client, Databases } from 'node-appwrite';
  * This function triggers on a database document create event in the 'webhooks' collection.
  * It delivers the payload to the specified URL via HTTP POST.
  */
+// eslint-disable-next-line import/no-anonymous-default-export
 export default async ({ req, res, log, error }) => {
     // 0. Environment Check
     const API_KEY = process.env.APPWRITE_API_KEY;

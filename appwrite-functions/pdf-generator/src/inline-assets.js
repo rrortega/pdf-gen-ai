@@ -1,7 +1,7 @@
 import { URL } from 'url';
 
 const PRIVATE_HOST_RE = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|::1$)/i;
-const ASSET_CACHE = new Map(); // Shared cache for ONE execution (or across warm starts if desired)
+export const ASSET_CACHE = new Map(); // Shared cache for ONE execution (or across warm starts if desired)
 
 function isPrivateOrLocalHostname(hostname) {
     if (!hostname) return true;

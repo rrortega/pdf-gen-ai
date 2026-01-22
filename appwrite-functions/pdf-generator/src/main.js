@@ -4,7 +4,7 @@ import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
 import Handlebars from 'handlebars';
 import { SignJWT } from 'jose';
-import { makeHtmlSelfContained } from './inline-assets.js';
+import { makeHtmlSelfContained, ASSET_CACHE } from './inline-assets.js';
 
 // --- Warm Start Optimization: Global State ---
 const TEMPLATE_CACHE = new Map();
@@ -189,6 +189,7 @@ const main = async ({ req, res, log, error }) => {
             compiledTemplate = {
                 render: Handlebars.compile(template.html || ""),
                 css: template.css || "",
+                inlinedCss: null, // Cache for the fully processed CSS
                 settings: {
                     paper_size: template.paper_size,
                     orientation: template.orientation,
@@ -205,17 +206,29 @@ const main = async ({ req, res, log, error }) => {
         const inputData = payload.data ? JSON.parse(Buffer.from(payload.data, 'base64').toString('utf-8')) : {};
         const htmlBody = compiledTemplate.render(inputData);
 
-        const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${compiledTemplate.css} @page { margin: 0; } body { margin: 0; -webkit-print-color-adjust: exact; }</style></head><body>${htmlBody}</body></html>`;
+        // Optimization: Inlining Template CSS only once
+        if (!compiledTemplate.inlinedCss) {
+            log('Inlining template CSS (first time)...');
+            const placeholderHtml = `<html><head><style>${compiledTemplate.css}</style></head></html>`;
+            const selfContainedPlaceholder = await makeHtmlSelfContained(placeholderHtml, {
+                baseUrl: env.BASE_URL,
+                allowHosts: env.ALLOW_HOSTS,
+            });
+            const match = selfContainedPlaceholder.match(/<style>([\s\S]*?)<\/style>/i);
+            compiledTemplate.inlinedCss = match ? match[1] : compiledTemplate.css;
+        }
 
-        log('Inlining assets...');
+        // REMOVED: @page { margin: 0; } which was overriding Puppeteer margins
+        const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${compiledTemplate.inlinedCss} body { margin: 0; -webkit-print-color-adjust: exact; }</style></head><body>${htmlBody}</body></html>`;
+
+        log('Inlining dynamic assets (if any)...');
         const startInline = Date.now();
         const selfContainedHtml = await makeHtmlSelfContained(fullHtml, {
             baseUrl: env.BASE_URL,
             allowHosts: env.ALLOW_HOSTS,
-            // Clear internal cache every few runs or based on time to prevent memory leaks in extreme cases
-            clearCache: Math.random() < 0.05
+            // Asset cache is shared across warm starts thanks to global Map in inline-assets.js
         });
-        log(`Inlining done in ${Date.now() - startInline}ms`);
+        log(`Inlining done in ${Date.now() - startInline}ms (Cache size: ${ASSET_CACHE.size})`);
 
         // 4. Puppeteer Rendering
         browser = await puppeteer.launch({

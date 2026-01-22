@@ -14,6 +14,7 @@ function isPrivateOrLocalHostname(hostname) {
         }
     }
     return false;
+
 }
 
 function assertSafeUrl(urlStr, { allowHosts } = {}) {

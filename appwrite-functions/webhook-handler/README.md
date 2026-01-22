@@ -5,14 +5,17 @@ This Appwrite Function is responsible for delivering asynchronous webhooks to th
 ## 🚀 Features
 
 - **Asynchronous Delivery**: Processed independently from PDF generation.
+- **Retry Mechanism**: Automatically retries failed deliveries up to a configurable limit.
+- **Retry Delay**: Implements a **30-second delay** for retry attempts (where `retry > 0`) to avoid overwhelming endpoints.
 - **Detailed Logging**: Records response status, body, and execution time in the `webhooks` collection.
-- **Robustness**: Includes built-in timeouts and error handling.
+- **State Guarding**: Only processes webhooks in a `pending` state and skips those that reached the max retry limit or are already `delivered`.
 
 ## ⚙️ Trigger Configuration
 
-This function should be configured to trigger on the following event:
+This function should be configured to trigger on the following events from the `webhooks` collection:
 
-- `databases.*.collections.webhooks.documents.*.create`
+- `create` (Initial attempt)
+- `update` (For subsequent retries)
 
 ## 🛠️ Environment Variables
 
@@ -25,6 +28,7 @@ The following variables must be configured in the Appwrite Console:
 | `NEXT_PUBLIC_APPWRITE_PROJECT_ID` | Your Appwrite Project ID. |
 | `NEXT_PUBLIC_APPWRITE_DATABASE_ID` | The ID of the database containing the `webhooks` collection. |
 | `NEXT_PUBLIC_APPWRITE_WEBHOOK_COLLECTION_ID` | The ID of the `webhooks` collection (defaults to `webhooks`). |
+| `WEBHOOK_MAXIMUM_RETRY` | Maximum number of delivery attempts (defaults to `3`). |
 
 ## 📦 Local Development
 

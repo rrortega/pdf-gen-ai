@@ -258,7 +258,7 @@ const main = async ({ req, res, log, error }) => {
                 name: payload.name,
                 size: sizeInKb
             };
-            await createWebhookRecord(tables, env.DATABASE_ID, env.WEBHOOK_ID, download_id, payload.webhook_callback, webhookData, log, error);
+            await createWebhookRecord(tables, env.DATABASE_ID, env.WEBHOOKS_ID, download_id, payload.webhook_callback, webhookData, log, error);
         }
 
         return res.json({ success: true, download_id, fileId, size: sizeInKb });
@@ -274,7 +274,7 @@ const main = async ({ req, res, log, error }) => {
                 if (typeof p === 'string') try { p = JSON.parse(p); } catch { }
 
                 if (p?.webhook_callback) {
-                    await createWebhookRecord(tables, env?.DATABASE_ID || process.env.DATABASE_ID, env?.WEBHOOK_ID || "webhooks", download_id, p.webhook_callback, { success: false, download_id, status: "failed", error: err.message }, log, error);
+                    await createWebhookRecord(tables, env?.DATABASE_ID || process.env.DATABASE_ID, env?.WEBHOOKS_ID || "webhooks", download_id, p.webhook_callback, { success: false, download_id, status: "failed", error: err.message }, log, error);
                 }
 
                 await tables.updateRow({

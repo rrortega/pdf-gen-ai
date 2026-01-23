@@ -693,7 +693,7 @@ export default function DocumentsList({
                                                         {t(doc.status)}
                                                     </span>
 
-                                                    {doc.webhook_callback && (
+                                                    {doc.webhook_callback ? (
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -706,6 +706,13 @@ export default function DocumentsList({
                                                             </svg>
                                                             {t("Async")}
                                                         </button>
+                                                    ) : (
+                                                        <span className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100/50">
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            {t("Sync")}
+                                                        </span>
                                                     )}
                                                 </div>
                                             )}

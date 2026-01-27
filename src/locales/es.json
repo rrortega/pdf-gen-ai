@@ -273,5 +273,7 @@
     "Loading documents...": "Cargando documentos...",
     "queued": "En cola",
     "Your generated PDFs will appear here in real-time.": "Tus documentos PDF generados aparecerán aquí en tiempo real.",
-    "Deleting...": "Eliminando..."
+    "Deleting...": "Eliminando...",
+    "Data Transferred": "Transferencia de Datos",
+    "trashed": "eliminado"
 }

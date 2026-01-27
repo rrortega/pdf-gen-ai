@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, connection } from 'next/server';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireOAuth } from '@/lib/oauth-middleware';
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite';
 import { getAuthenticatedDatabases } from '@/lib/auth';
@@ -41,6 +42,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get('search');
     const tags = searchParams.get('tags')?.split(',');
+    const ids = searchParams.get('ids')?.split(',');
+    const includeTestData = searchParams.get('includeTestData') === 'true';
 
     // Build queries
     const queries = [searchParams.get('base') ? Query.isNull('user_id') : Query.equal('user_id', userId)];
@@ -53,6 +56,10 @@ export async function GET(request: NextRequest) {
       queries.push(Query.contains('tags', tags));
     }
 
+    if (ids && ids.length > 0) {
+      queries.push(Query.equal('$id', ids));
+    }
+
     // Get templates using TablesDB
     const response = await tables.listRows({
       databaseId: DATABASE_ID,
@@ -63,14 +70,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       total: response.total,
-      templates: response.rows.map(row => ({
-        $id: row.$id,
-        title: row.title,
-        description: row.description,
-        tags: row.tags,
-        $createdAt: row.$createdAt,
-        $updatedAt: row.$updatedAt,
-      })),
+      templates: response.rows.map(row => {
+        const template: any = {
+          $id: row.$id,
+          title: row.title,
+          description: row.description,
+          tags: row.tags,
+          $createdAt: row.$createdAt,
+          $updatedAt: row.$updatedAt,
+        };
+
+        if (includeTestData && row.test_data) {
+          try {
+            template.request_payload = JSON.parse(Buffer.from(row.test_data, 'base64').toString('utf8'));
+          } catch (e) {
+            console.warn(`Could not decode test_data for template ${row.$id}:`, e);
+          }
+        }
+
+        return template;
+      }),
     });
 
   } catch (error: unknown) {
@@ -171,6 +190,14 @@ body {
       rowId: ID.unique(),
       data: initialData,
     });
+
+    // Invalidate template list and dashboard caches
+    revalidatePath("/templates", "page");
+    revalidatePath("/dashboard", "page");
+    revalidateTag("templates", "max");
+    revalidateTag(`user-templates-${user.id}`, "max");
+    revalidateTag("dashboard", "max");
+    revalidateTag(`user-dashboard-${user.id}`, "max");
 
     return NextResponse.json({
       success: true,

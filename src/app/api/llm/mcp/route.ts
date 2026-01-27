@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { SignJWT } from "jose";
 import { ID } from "node-appwrite";
@@ -105,6 +106,14 @@ function getOrCreateServer() {
                 rowId: createdDocument.$id,
                 data: { signature }
             });
+
+            // Invalidate document list and dashboard caches
+            revalidatePath("/documents", "page");
+            revalidatePath("/dashboard", "page");
+            revalidateTag("documents", "max");
+            revalidateTag(`user-documents-${user.id}`, "max");
+            revalidateTag("dashboard", "max");
+            revalidateTag(`user-dashboard-${user.id}`, "max");
 
             const appUrl = process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL;
             const downloadUrl = `${appUrl}/api/v1/documents/${createdDocument.$id}/download?signature=${signature}`;

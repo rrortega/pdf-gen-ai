@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useI18n } from "@/hooks/useI18n";
 import ThumbnailImage from "@/components/templates/ThumbnailImage";
 import IntegrationModal from "@/components/templates/IntegrationModal";
+import ApiDocsModal from "@/components/templates/ApiDocsModal";
 
 export interface Template {
     $id: string;
@@ -58,7 +59,7 @@ function DeleteConfirmationModal({
                     </label>
                     <input
                         type="text"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all text-red-500"
                         placeholder={confirmationText}
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
@@ -111,6 +112,7 @@ export default function TemplatesList({ initialTemplates }: TemplatesListProps) 
     const [templateForIntegration, setTemplateForIntegration] = useState<Template | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
+    const [isApiDocsModalOpen, setIsApiDocsModalOpen] = useState(false);
     const [fetchingIntegrationId, setFetchingIntegrationId] = useState<string | null>(null);
 
     const fetchTemplates = useCallback(async () => {
@@ -217,15 +219,28 @@ export default function TemplatesList({ initialTemplates }: TemplatesListProps) 
                         <h1 className="text-3xl font-bold text-gray-900">
                             {t("My Templates")}
                         </h1>
-                        <button
-                            onClick={() => router.push("/templates/new")}
-                            className="bg-gray-900 text-white transition-colors shadow-lg z-30 fixed bottom-20 right-6 md:static md:bottom-auto md:right-auto md:shadow-none md:flex md:items-center md:gap-2 md:px-4 md:py-2 md:rounded-lg hover:bg-gray-950 w-14 h-14 md:w-auto md:h-auto rounded-full md:rounded-lg flex items-center justify-center"
-                        >
-                            <svg className="w-6 h-6 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            <span className="hidden md:inline">{t("Create New Template")}</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setIsApiDocsModalOpen(true)}
+                                className="bg-white text-gray-700 hover:bg-gray-100 transition-all border border-gray-200 px-4 py-2 rounded-lg flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
+                                title={t("API Documentation")}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                                </svg>
+                                <span className="hidden md:inline">{t("API")}</span>
+                            </button>
+                            <button
+                                onClick={() => router.push("/templates/new")}
+                                className="bg-gray-900 text-white transition-colors shadow-lg z-30 fixed bottom-20 right-6 md:static md:bottom-auto md:right-auto md:shadow-none md:flex md:items-center md:gap-2 md:px-4 md:py-2 md:rounded-lg hover:bg-gray-950 w-14 h-14 md:w-auto md:h-auto rounded-full md:rounded-lg flex items-center justify-center"
+                            >
+                                <svg className="w-6 h-6 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                <span className="hidden md:inline">{t("Create New Template")}</span>
+                            </button>
+
+                        </div>
                     </div>
 
                     {/* Search Bar */}
@@ -458,6 +473,11 @@ export default function TemplatesList({ initialTemplates }: TemplatesListProps) 
                     templateId={templateForIntegration?.$id || ""}
                     templateTitle={templateForIntegration?.title || ""}
                     testData={(templateForIntegration?.test_data as Record<string, unknown>) || {}}
+                />
+
+                <ApiDocsModal
+                    isOpen={isApiDocsModalOpen}
+                    onClose={() => setIsApiDocsModalOpen(false)}
                 />
             </div>
         </div>

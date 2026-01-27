@@ -69,7 +69,7 @@ export default function IntegrationModal({
         try {
             const body = JSON.stringify({
                 template_id: templateId,
-                filename: "example-document",
+                name: "example-document",
                 data: parsedData
             }, null, 2);
 
@@ -101,7 +101,7 @@ $apiKey = "YOUR_API_KEY";
 
 $data = array(
     "template_id" => "${templateId}",
-    "filename" => "example-document",
+    "name" => "example-document",
     "data" => json_decode('${JSON.stringify(parsedData)}', true)
 );
 

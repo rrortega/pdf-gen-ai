@@ -259,25 +259,61 @@ export default function DashboardView({ initialData, currentUserId }: DashboardV
             </div>
 
             {/* Activity Chart */}
-            <div className="mb-8 bg-white p-0 shadow-sm border-y border-gray-200">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">
-                    {t("Document Generation Activity")} ({stats?.periodDays} {t("days")})
-                </h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">
+                {t("Document Generation Activity")} ({stats?.periodDays} {t("days")})
+            </h2>
+            <div className="mb-8 bg-white p-6 rounded-2xl border border-gray-300 shadow-sm">
+
                 <div className="w-full h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={activityData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                        <ComposedChart data={activityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <defs>
                                 <linearGradient id="colorDownloads" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#4ade80" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
+                                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.1} />
+                                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis dataKey="date" tickFormatter={(v) => formatDate(v).split(',')[0]} stroke="#6b7280" fontSize={12} />
-                            <YAxis stroke="#6b7280" fontSize={12} />
-                            <Tooltip />
-                            <Area type="monotone" dataKey="downloads" fill="url(#colorDownloads)" stroke="#4ade80" strokeWidth={2} />
-                            <Bar dataKey="created" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                            <XAxis
+                                dataKey="date"
+                                tickFormatter={(v) => formatDate(v).split(',')[0]}
+                                stroke="#9ca3af"
+                                fontSize={10}
+                                fontWeight={600}
+                                axisLine={false}
+                                tickLine={false}
+                                dy={10}
+                            />
+                            <YAxis
+                                stroke="#9ca3af"
+                                fontSize={10}
+                                fontWeight={600}
+                                axisLine={false}
+                                tickLine={false}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    borderRadius: '16px',
+                                    border: 'none',
+                                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                                    padding: '12px'
+                                }}
+                            />
+                            <Area
+                                type="monotone"
+                                dataKey="downloads"
+                                fill="url(#colorDownloads)"
+                                stroke="#8b5cf6"
+                                strokeWidth={3}
+                                dot={{ r: 4, fill: '#8b5cf6', strokeWidth: 2, stroke: '#fff' }}
+                                activeDot={{ r: 6, strokeWidth: 0 }}
+                            />
+                            <Bar
+                                dataKey="created"
+                                fill="#3b82f6"
+                                radius={[6, 6, 0, 0]}
+                                maxBarSize={30}
+                            />
                         </ComposedChart>
                     </ResponsiveContainer>
                 </div>
@@ -286,7 +322,7 @@ export default function DashboardView({ initialData, currentUserId }: DashboardV
             {/* Recent Documents */}
             <div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">{t("Recent Documents")}</h2>
-                <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden min-h-[200px] ">
+                <div className="rounded-lg border border-gray-300 bg-white shadow-sm overflow-hidden min-h-[200px] ">
                     {recentDocuments.length === 0 ? (
                         <p className="text-center text-gray-500 py-12">
                             {t("No documents yet. Start by generating your first PDF.")}

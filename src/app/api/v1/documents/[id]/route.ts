@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse, connection } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import {
   DATABASE_ID,
   COLLECTIONS,
@@ -134,6 +134,11 @@ export async function DELETE(
 
     // Invalidate document list cache and trigger UI refresh
     revalidatePath("/documents", "page");
+    revalidatePath("/dashboard", "page");
+    revalidateTag("documents", "max");
+    revalidateTag(`user-documents-${user.id}`, "max");
+    revalidateTag("dashboard", "max");
+    revalidateTag(`user-dashboard-${user.id}`, "max");
 
     return NextResponse.json({ success: true, message: "Document trashed and file removed" });
   } catch (error: unknown) {

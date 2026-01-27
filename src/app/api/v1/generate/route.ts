@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import {
     DATABASE_ID,
     COLLECTIONS,
@@ -13,7 +13,7 @@ import { validateWebhookUrl } from "@/lib/security";
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-me";
 const encoder = new TextEncoder();
 
-const sendWebhookWithRetry = async (url: string, payload: any) => {
+const sendWebhookWithRetry = async (url: string, payload: Record<string, unknown>) => {
     let attempts = 0;
     const maxAttempts = 3;
     let lastResponseContent = "";
@@ -41,9 +41,8 @@ const sendWebhookWithRetry = async (url: string, payload: any) => {
                 return { attempts, response: lastResponseContent, success: true };
             }
 
-        } catch (err: any) {
-            const isTimeout = err.name === 'AbortError';
-            const msg = isTimeout ? 'Timeout after 10s' : err.message;
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
             lastResponseContent = `Error: ${msg}`;
             if (attempts < maxAttempts) await new Promise(r => setTimeout(r, 10000));
         }
@@ -125,6 +124,11 @@ export async function POST(request: NextRequest) {
 
             // Invalidate document list cache and trigger UI refresh
             revalidatePath("/documents", "page");
+            revalidatePath("/dashboard", "page");
+            revalidateTag("documents", "max");
+            revalidateTag(`user-documents-${user.id}`, "max");
+            revalidateTag("dashboard", "max");
+            revalidateTag(`user-dashboard-${user.id}`, "max");
 
             if (webhook_callback) {
                 // Return immediately
@@ -226,6 +230,14 @@ export async function POST(request: NextRequest) {
                 ]
             });
 
+            // Invalidate document list cache and trigger UI refresh
+            revalidatePath("/documents", "page");
+            revalidatePath("/dashboard", "page");
+            revalidateTag("documents", "max");
+            revalidateTag(`user-documents-${user.id}`, "max");
+            revalidateTag("dashboard", "max");
+            revalidateTag(`user-dashboard-${user.id}`, "max");
+
             // 2. Trigger background generation (Sync logic wrapped in async for webhook handling)
             (async () => {
                 let webhookId = null;
@@ -290,6 +302,14 @@ export async function POST(request: NextRequest) {
                         }
                     });
 
+                    // Invalidate document list cache and trigger UI refresh
+                    revalidatePath("/documents", "page");
+                    revalidatePath("/dashboard", "page");
+                    revalidateTag("documents", "max");
+                    revalidateTag(`user-documents-${user.id}`, "max");
+                    revalidateTag("dashboard", "max");
+                    revalidateTag(`user-dashboard-${user.id}`, "max");
+
                     // 3. Process Webhook (Send it)
                     const downloadUrl = `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${download_id}/download?signature=${signature}`;
 
@@ -317,7 +337,7 @@ export async function POST(request: NextRequest) {
                         }
                     });
 
-                } catch (error: any) {
+                } catch (error: unknown) {
                     const errorMessage = error instanceof Error ? error.message : "Background generation failed";
                     console.error(`[Background] Generation failed for ${download_id}:`, error);
 
@@ -329,7 +349,15 @@ export async function POST(request: NextRequest) {
                             rowId: download_id,
                             data: { status: "failed", error_message: errorMessage }
                         });
-                    } catch (e) { }
+
+                        // Invalidate document list cache and trigger UI refresh
+                        revalidatePath("/documents", "page");
+                        revalidatePath("/dashboard", "page");
+                        revalidateTag("documents", "max");
+                        revalidateTag(`user-documents-${user.id}`, "max");
+                        revalidateTag("dashboard", "max");
+                        revalidateTag(`user-dashboard-${user.id}`, "max");
+                    } catch { }
 
                     // Process Webhook (Failure)
                     if (webhookId) {
@@ -419,6 +447,11 @@ export async function POST(request: NextRequest) {
 
                 // Invalidate document list cache and trigger UI refresh
                 revalidatePath("/documents", "page");
+                revalidatePath("/dashboard", "page");
+                revalidateTag("documents", "max");
+                revalidateTag(`user-documents-${user.id}`, "max");
+                revalidateTag("dashboard", "max");
+                revalidateTag(`user-dashboard-${user.id}`, "max");
 
                 return NextResponse.json({
                     success: true,
@@ -432,12 +465,12 @@ export async function POST(request: NextRequest) {
                     },
                     download_url: `${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_APP_URL}/api/v1/documents/${createdDocument.$id}/download?signature=${signature}`,
                 });
-            } catch (pdfError: any) {
+            } catch (pdfError: unknown) {
                 const errorMessage = pdfError instanceof Error ? pdfError.message : "Failed to generate PDF";
                 return NextResponse.json({ error: errorMessage }, { status: 500 });
             }
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : "Internal server error";
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }

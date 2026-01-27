@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, connection } from "next/server";
+import { revalidatePath, revalidateTag } from "next/cache";
 import {
   DATABASE_ID,
   COLLECTIONS,
@@ -137,6 +138,14 @@ export async function PUT(
       data: updateData
     });
 
+    // Invalidate template list and dashboard caches
+    revalidatePath("/templates", "page");
+    revalidatePath("/dashboard", "page");
+    revalidateTag("templates", "max");
+    revalidateTag(`user-templates-${user.id}`, "max");
+    revalidateTag("dashboard", "max");
+    revalidateTag(`user-dashboard-${user.id}`, "max");
+
     // Decode for response
     let responseTestData = updatedTemplate.test_data;
     if (updatedTemplate.test_data) {
@@ -204,6 +213,14 @@ export async function DELETE(
       tableId: COLLECTIONS.TEMPLATES,
       rowId: id
     });
+
+    // Invalidate template list and dashboard caches
+    revalidatePath("/templates", "page");
+    revalidatePath("/dashboard", "page");
+    revalidateTag("templates", "max");
+    revalidateTag(`user-templates-${user.id}`, "max");
+    revalidateTag("dashboard", "max");
+    revalidateTag(`user-dashboard-${user.id}`, "max");
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

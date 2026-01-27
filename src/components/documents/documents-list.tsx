@@ -5,6 +5,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { getAppwriteClientSafe, Databases } from "@/lib/appwrite-client";
 import { Query } from "appwrite";
 import JSZip from "jszip";
+import DocumentApiDocsModal from "@/components/documents/DocumentApiDocsModal";
 
 export interface Document {
     // ... (rest is same)
@@ -58,6 +59,7 @@ export default function DocumentsList({
     const [searchQuery, setSearchQuery] = useState("");
     const [isDeleting, setIsDeleting] = useState(false);
     const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
+    const [isApiDocsModalOpen, setIsApiDocsModalOpen] = useState(false);
 
     // Batch Actions State
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -560,22 +562,34 @@ export default function DocumentsList({
                         </div>
                     </div>
 
-                    <div className="relative w-full md:w-96">
-                        <input
-                            type="text"
-                            placeholder={t("Search documents...")}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900 outline-none text-gray-900 shadow-sm bg-white"
-                        />
-                        <svg
-                            className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                        <button
+                            onClick={() => setIsApiDocsModalOpen(true)}
+                            className="bg-white text-gray-700 hover:bg-gray-100 transition-all border border-gray-200 px-4 py-3 rounded-xl flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
+                            title={t("API Documentation")}
                         >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                            </svg>
+                            <span className="hidden md:inline">{t("API")}</span>
+                        </button>
+                        <div className="relative flex-1 md:w-96">
+                            <input
+                                type="text"
+                                placeholder={t("Search documents...")}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900 outline-none text-gray-900 shadow-sm bg-white"
+                            />
+                            <svg
+                                className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
                     </div>
                 </div>
 
@@ -1059,6 +1073,10 @@ export default function DocumentsList({
                     </div>
                 )
             }
+            <DocumentApiDocsModal
+                isOpen={isApiDocsModalOpen}
+                onClose={() => setIsApiDocsModalOpen(false)}
+            />
         </div>
     );
 }

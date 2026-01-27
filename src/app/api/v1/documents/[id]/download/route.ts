@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, connection } from "next/server";
+import { revalidateTag } from "next/cache";
 import { DATABASE_ID, COLLECTIONS, getServerAppwriteTables } from "@/lib/appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
 
@@ -55,6 +56,15 @@ export async function GET(
                 downloads: (document.downloads || 0) + 1,
             },
         });
+
+        // Invalidate dashboard cache to reflect new download count
+        if (document.user_id) {
+            revalidateTag("dashboard", "max");
+            revalidateTag(`user-dashboard-${document.user_id}`, "max");
+            // Also documents list as it shows download count
+            revalidateTag("documents", "max");
+            revalidateTag(`user-documents-${document.user_id}`, "max");
+        }
 
         // Construct S3 URL
         const s3Endpoint = process.env.NEXT_PUBLIC_S3_ENDPOINT;

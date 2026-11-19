@@ -10,9 +10,7 @@
     "kill:port": "lsof -ti:3030 | xargs kill -9 2>/dev/null || true",
     "kill:next": "pkill -f \"next\" 2>/dev/null || true",
     "postinstall": "npx puppeteer browsers install chrome",
-    "copy:monaco": "node scripts/copy-monaco-assets.mjs",
-    "predev": "node scripts/copy-monaco-assets.mjs",
-    "prebuild": "node scripts/copy-monaco-assets.mjs"
+    "copy:monaco": "node scripts/copy-monaco-assets.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1172.0",

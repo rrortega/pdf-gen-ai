@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 
 const { renderHbsHtml, TemplateHtmlError } = await import('../src/lib/hbs.ts');
@@ -60,10 +63,65 @@ test('the shipped Monaco bundle carries a patched DOMPurify', () => {
   assert.doesNotMatch(bundle, /version="3\.4\.15"/);
 });
 
-test('the copy step is chained into build and dev without redundant lifecycle hooks', () => {
+test('the copy step is chained into build and dev', () => {
   const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
 
   for (const script of ['build', 'dev']) {
     assert.match(manifest.scripts[script], /^node scripts\/copy-monaco-assets\.mjs && /);
+  }
+});
+
+function makeCopyProject({ pin, installedVersion, entries = ['vs/loader.js', 'vs/editor/editor.main.js'] }) {
+  const root = mkdtempSync(join(tmpdir(), 'monaco-copy-'));
+  mkdirSync(join(root, 'scripts'), { recursive: true });
+  copyFileSync('scripts/copy-monaco-assets.mjs', join(root, 'scripts/copy-monaco-assets.mjs'));
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ dependencies: { 'monaco-editor': pin } }));
+  mkdirSync(join(root, 'node_modules/monaco-editor'), { recursive: true });
+  writeFileSync(
+    join(root, 'node_modules/monaco-editor/package.json'),
+    JSON.stringify({ version: installedVersion }),
+  );
+
+  const minDir = join(root, 'node_modules/monaco-editor/min');
+  for (const entry of entries) {
+    mkdirSync(dirname(join(minDir, entry)), { recursive: true });
+    writeFileSync(join(minDir, entry), 'stub');
+  }
+
+  return root;
+}
+
+test('running the copy step really publishes the versioned asset tree', () => {
+  const root = makeCopyProject({ pin: '1.2.3', installedVersion: '1.2.3' });
+
+  try {
+    const output = execFileSync('node', [join(root, 'scripts/copy-monaco-assets.mjs')], {
+      encoding: 'utf8',
+    });
+
+    assert.match(output, /public\/monaco\/1\.2\.3\/min/);
+    assert.equal(
+      readFileSync(join(root, 'public/monaco/1.2.3/min/vs/loader.js'), 'utf8'),
+      'stub',
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('the copy step exits non-zero when the installed version drifts from the pin', () => {
+  const root = makeCopyProject({ pin: '1.2.3', installedVersion: '1.2.4' });
+
+  try {
+    assert.throws(
+      () => execFileSync('node', [join(root, 'scripts/copy-monaco-assets.mjs')], { encoding: 'utf8', stdio: 'pipe' }),
+      (error) => {
+        assert.equal(error.status, 1);
+        assert.match(String(error.stderr), /version mismatch/);
+        return true;
+      },
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

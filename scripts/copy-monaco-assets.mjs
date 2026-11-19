@@ -6,9 +6,9 @@
 // The generated tree (public/monaco/<version>/) is gitignored; run this
 // through the `predev`/`prebuild` npm lifecycle hooks before every build.
 
-import { cpSync, existsSync, readdirSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(scriptDir, '..');
@@ -111,7 +111,22 @@ function run() {
   );
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+// Compare real paths: symlinked locations such as macOS /var -> /private/var, or a
+// project mounted through a symlink, must still run the copy step.
+function isEntryPoint() {
+  const invoked = process.argv[1];
+  if (!invoked) {
+    return false;
+  }
+
+  try {
+    return realpathSync(resolve(invoked)) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
   try {
     run();
   } catch (error) {

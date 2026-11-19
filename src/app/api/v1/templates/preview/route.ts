@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PDFGenerator } from "@/lib/pdf-generator";
+import { assertHbsTemplateHtml, TemplateHtmlError } from "@/lib/hbs";
 
 export async function POST(request: NextRequest) {
     try {
@@ -16,6 +17,8 @@ export async function POST(request: NextRequest) {
                 { status: 400 }
             );
         }
+
+        assertHbsTemplateHtml(html);
 
         // Generate PDF using centralized generator for 100% parity
         const pdfBuffer = await PDFGenerator.generatePDF(
@@ -40,6 +43,9 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
         console.error("PDF preview error:", errorMessage);
+        if (error instanceof TemplateHtmlError) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+        }
         return NextResponse.json(
             {
                 error: "Failed to generate PDF preview",

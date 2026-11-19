@@ -1,5 +1,23 @@
 import Handlebars from "handlebars";
 
+const MAX_TEMPLATE_HTML_BYTES = 1_048_576;
+
+export class TemplateHtmlError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "TemplateHtmlError";
+    }
+}
+
+export function assertHbsTemplateHtml(html: unknown): asserts html is string {
+    if (typeof html !== "string") {
+        throw new TemplateHtmlError("Template HTML must be a string");
+    }
+    if (Buffer.byteLength(html) > MAX_TEMPLATE_HTML_BYTES) {
+        throw new TemplateHtmlError("Template HTML exceeds 1 MiB");
+    }
+}
+
 export function registerHbsHelpers() {
     // evita registrar dos veces en hot-reload
     if (Handlebars.helpers["inc"]) return;
@@ -228,4 +246,12 @@ export function registerHbsPartials() {
     if (!Handlebars.partials["money-format"]) {
         Handlebars.registerPartial("money-format", "{{formatMoney this prefix=\"$\" precision=2}}");
     }
+}
+
+/** Compile only validated template strings while preserving the existing helpers. */
+export function renderHbsHtml(html: unknown, data: unknown): string {
+    assertHbsTemplateHtml(html);
+    registerHbsHelpers();
+    registerHbsPartials();
+    return Handlebars.compile(html)(data);
 }

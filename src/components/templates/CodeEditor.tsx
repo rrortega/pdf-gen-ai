@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import Editor from "@monaco-editor/react";
+import { ensureMonacoLoaderConfigured } from "@/lib/monaco-loader";
 
 interface CodeEditorProps {
     value: string;
@@ -20,6 +21,8 @@ export default function CodeEditor({
     error,
 }: CodeEditorProps) {
     const editorRef = useRef<any>(null);
+
+    ensureMonacoLoaderConfigured();
 
     const handleEditorDidMount = (editor: any) => {
         editorRef.current = editor;

@@ -1,14 +1,19 @@
 import { Client, TablesDB, Storage, ID } from 'node-appwrite';
 import { InputFile } from 'node-appwrite/file';
-import chromium from '@sparticuz/chromium';
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer';
 import Handlebars from 'handlebars';
 import { SignJWT } from 'jose';
 import { makeHtmlSelfContained, ASSET_CACHE } from './inline-assets.js';
 
 // --- Warm Start Optimization: Global State ---
 const TEMPLATE_CACHE = new Map();
+const MAX_TEMPLATE_HTML_BYTES = 1_048_576;
 let HELPERS_REGISTERED = false;
+
+function assertTemplateHtml(html) {
+    if (typeof html !== 'string') throw new Error('Template HTML must be a string');
+    if (Buffer.byteLength(html) > MAX_TEMPLATE_HTML_BYTES) throw new Error('Template HTML exceeds 1 MiB');
+}
 
 function registerHbsHelpers() {
     if (HELPERS_REGISTERED) return;
@@ -186,8 +191,10 @@ const main = async ({ req, res, log, error }) => {
             });
             if (!template) throw new Error(`Template ${payload.template_id} not found`);
 
+            const templateHtml = template.html ?? "";
+            assertTemplateHtml(templateHtml);
             compiledTemplate = {
-                render: Handlebars.compile(template.html || ""),
+                render: Handlebars.compile(templateHtml),
                 css: template.css || "",
                 inlinedCss: null, // Cache for the fully processed CSS
                 settings: {
@@ -232,11 +239,10 @@ const main = async ({ req, res, log, error }) => {
 
         // 4. Puppeteer Rendering
         browser = await puppeteer.launch({
-            args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--no-zygote', '--disable-gpu'],
-            defaultViewport: chromium.defaultViewport,
-            executablePath: await chromium.executablePath(),
-            headless: chromium.headless,
-            ignoreHTTPSErrors: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--no-zygote', '--disable-gpu'],
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+            headless: true,
+            acceptInsecureCerts: true,
         });
 
         const page = await browser.newPage();

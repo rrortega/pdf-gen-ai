@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import Handlebars from "handlebars";
-import { registerHbsHelpers, registerHbsPartials } from "@/lib/hbs";
+import { renderHbsHtml, TemplateHtmlError } from "@/lib/hbs";
 
 export async function POST(request: NextRequest) {
     try {
         const { html, css, test_data, orientation, paper_size, margins } = await request.json();
-
-        // Register Handlebars helpers and partials
-        registerHbsHelpers();
-        registerHbsPartials();
 
         // Parse test data
         let data = {};
@@ -18,14 +13,7 @@ export async function POST(request: NextRequest) {
             console.error("JSON parse error in preview-html:", error);
         }
 
-        // Compile Handlebars template
-        let renderedHtml = html || "";
-        try {
-            const template = Handlebars.compile(html || "");
-            renderedHtml = template(data);
-        } catch (e) {
-            console.error("Handlebars compilation error in preview-html:", e);
-        }
+        const renderedHtml = renderHbsHtml(html ?? "", data);
 
         // Paper dimensions mapping (approximate for preview)
         const paperDimensions: Record<string, string> = {
@@ -89,6 +77,9 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error("Preview HTML error:", error);
+        if (error instanceof TemplateHtmlError) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+        }
         return NextResponse.json({ error: "Failed to generate preview" }, { status: 500 });
     }
 }

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerAppwriteClient, COLLECTIONS, DATABASE_ID } from "@/lib/appwrite";
 import * as sdk from "node-appwrite";
-import Handlebars from "handlebars";
-import { registerHbsHelpers } from "@/lib/hbs";
+import { renderHbsHtml, TemplateHtmlError } from "@/lib/hbs";
 
 export async function GET(
     req: NextRequest,
@@ -31,9 +30,6 @@ export async function GET(
             return NextResponse.json({ error: "Template not found" }, { status: 404 });
         }
 
-        // Register helpers
-        registerHbsHelpers();
-
         // Decode test_data if it's base64 (consistent with other API routes)
         let parsedData = template.test_data || {};
         if (typeof template.test_data === 'string') {
@@ -50,9 +46,7 @@ export async function GET(
             }
         }
 
-        // Compile and render
-        const hbTemplate = Handlebars.compile(template.html || "");
-        const renderedHtml = hbTemplate(parsedData);
+        const renderedHtml = renderHbsHtml(template.html ?? "", parsedData);
 
         // Wrap in full HTML structure for proper rendering/capture
         const fullHtml = `
@@ -80,6 +74,9 @@ export async function GET(
         });
     } catch (error) {
         console.error("Public preview render error:", error);
+        if (error instanceof TemplateHtmlError) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+        }
         return NextResponse.json(
             { error: error instanceof Error ? error.message : "Failed to render template" },
             { status: 500 }

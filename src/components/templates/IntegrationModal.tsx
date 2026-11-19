@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import Editor from "@monaco-editor/react";
+import { ensureMonacoLoaderConfigured } from "@/lib/monaco-loader";
 
 interface IntegrationModalProps {
     isOpen: boolean;
@@ -32,6 +33,8 @@ export default function IntegrationModal({
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState(0);
     const [isEditorLoading, setIsEditorLoading] = useState(true);
+
+    ensureMonacoLoaderConfigured();
 
     if (!isOpen) return null;
 

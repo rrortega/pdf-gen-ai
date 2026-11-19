@@ -5,13 +5,16 @@
     "main": "src/main.js",
     "type": "module",
     "dependencies": {
-        "@sparticuz/chromium": "^122.0.0",
         "node-appwrite": "^21.1.0",
-        "puppeteer-core": "^22.6.3",
-        "handlebars": "^4.7.8",
+        "puppeteer": "25.18.1",
+        "handlebars": "4.7.10",
         "jose": "^5.0.0"
     },
+    "puppeteer": {
+        "cacheDirectory": ".cache/puppeteer",
+        "skipDownload": false
+    },
     "engines": {
-        "node": ">=20.0.0"
+        "node": ">=22.12.0"
     }
 }

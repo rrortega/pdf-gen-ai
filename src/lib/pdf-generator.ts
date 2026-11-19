@@ -1,76 +1,32 @@
-import chromium from "@sparticuz/chromium";
-import puppeteer, { Browser, PaperFormat } from "puppeteer-core";
-import Handlebars from "handlebars";
+import puppeteer, { Browser, PaperFormat } from "puppeteer";
 import { getServerAppwriteStorage, BUCKETS, ID } from "./appwrite";
 import { InputFile } from "node-appwrite/file";
-import { registerHbsHelpers, registerHbsPartials } from "./hbs";
-import fs from "fs";
+import { renderHbsHtml } from "./hbs";
 
 export class PDFGenerator {
   private static browser: Browser | null = null;
 
   private static async getBrowser(): Promise<Browser> {
-    if (this.browser && !this.browser.isConnected()) {
+    if (this.browser && !this.browser.connected) {
       console.warn("[PDFGenerator] Browser disconnected, closing old instance...");
       try { await this.browser.close(); } catch { /* ignore */ }
       this.browser = null;
     }
 
     if (!this.browser) {
-      const isProd = process.env.NODE_ENV === "production";
-      let executablePath: string | null = null;
-
-      // 1. Priority: Environment Variable
-      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-        console.log(`[PDFGenerator] Using browser from environment variable: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
-        executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-      }
-      // 2. Production: Use @sparticuz/chromium
-      else if (isProd) {
-        console.log("[PDFGenerator] launching browser with @sparticuz/chromium (production)");
-        executablePath = await chromium.executablePath();
-      }
-      // 3. Development: Search for local installations
-      else {
-        console.log("[PDFGenerator] launching browser in development mode");
-        const localPaths = [
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-          "/Applications/Chromium.app/Contents/MacOS/Chromium",
-          "/usr/bin/google-chrome",
-          "/usr/bin/google-chrome-stable",
-          "/usr/bin/chromium",
-          "/usr/bin/chromium-browser"
-        ];
-
-        for (const path of localPaths) {
-          if (fs.existsSync(path)) {
-            executablePath = path;
-            break;
-          }
-        }
+      const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      if (executablePath) {
+        console.log(`[PDFGenerator] Using browser from environment variable: ${executablePath}`);
+      } else {
+        console.log("[PDFGenerator] Using Puppeteer's managed Chrome for Testing browser");
       }
 
-      if (!executablePath && !isProd) {
-        console.warn("[PDFGenerator] No Chrome/Chromium executable found in common local paths. Puppeteer may fail.");
-      }
-
-      this.browser = (await puppeteer.launch({
-        args: isProd ? [
-          ...chromium.args,
-          "--disable-gpu",
-          "--disable-dev-shm-usage",
-          "--disable-setuid-sandbox",
-          "--no-sandbox",
-        ] : [
-          "--no-sandbox",
-          "--disable-setuid-sandbox"
-        ],
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        defaultViewport: isProd ? (chromium as any).defaultViewport : { width: 1280, height: 720 },
+      this.browser = await puppeteer.launch({
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+        defaultViewport: { width: 1280, height: 720 },
         executablePath: executablePath || undefined,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        headless: isProd ? (chromium as any).headless : true,
-      })) as unknown as Browser;
+        headless: true,
+      });
 
       console.log("[PDFGenerator] New browser instance launched.");
     } else {
@@ -101,11 +57,7 @@ export class PDFGenerator {
       const browser = await this.getBrowser();
       page = await browser.newPage();
 
-      registerHbsHelpers();
-      registerHbsPartials();
-
-      const template = Handlebars.compile(templateHtml);
-      const html = template(data);
+      const html = renderHbsHtml(templateHtml, data);
 
       const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${html}</body></html>`;
 
@@ -174,9 +126,10 @@ export class PDFGenerator {
       });
 
       await page.setContent(fullHtml, {
-        waitUntil: ["load", "domcontentloaded", "networkidle2"],
+        waitUntil: ["load", "domcontentloaded"],
         timeout: 45000
       });
+      await page.waitForNetworkIdle({ idleTime: 500, timeout: 45000 });
 
       try {
         await page.evaluateHandle("document.fonts.ready");

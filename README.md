@@ -35,7 +35,7 @@ AI-powered PDF generation platform with template management, OAuth 2.0 authentic
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 22.12+ (required by Puppeteer 25)
 - npm or pnpm
 - Appwrite instance (cloud or self-hosted)
 
@@ -109,15 +109,12 @@ npm run build
 ```
 
 ### Production Runtime (Appwrite / Linux)
-When deploying to Appwrite or any restricted Linux environment, Puppeteer needs specialized configuration to find and run Chromium:
+Puppeteer 25 manages its compatible Chrome for Testing revision (`157.0.8103.78`) at install time. `.puppeteerrc.cjs` keeps that browser in the project's `.cache/puppeteer` directory so Docker includes it in the image.
 
-1. **Local Cache**: We've included a `.puppeteerrc.cjs` file that forces Puppeteer to store the browser in a local `.cache` folder within the project. This avoids permission errors in `/root/.cache`.
-2. **Environment Variable**: Set `PUPPETEER_EXECUTABLE_PATH` to the path of your installed Chrome/Chromium binary (e.g., `/usr/bin/google-chrome-stable`) if you wish to override the auto-installed version.
-3. **Build Command**: In your Appwrite deployment settings, use the following command to ensure Chromium is downloaded into the project's local cache:
-   ```bash
-   npx puppeteer browsers install chrome && npm run build --turbo
-   ```
-4. **Internal Flags**: The application is already pre-configured with `--no-sandbox`, `--single-process`, and other production-grade flags.
+1. Use Node.js 22.12 or newer.
+2. Run `npm ci` (Docker already does this) and allow Puppeteer's install script to download the managed browser.
+3. Set `PUPPETEER_EXECUTABLE_PATH` only when supplying a separately verified compatible Chrome executable. Do not set a skip-download variable without that override.
+4. The application retains its sandbox-safe launch flags and blocks private browser requests.
 
 The development server runs on `http://localhost:3030`
 

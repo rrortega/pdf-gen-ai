@@ -1,6 +1,5 @@
 import { getServerAppwriteTables, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite";
-import Handlebars from "handlebars";
-import { registerHbsHelpers } from "@/lib/hbs";
+import { renderHbsHtml, TemplateHtmlError } from "@/lib/hbs";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
@@ -46,17 +45,15 @@ export async function GET(
         }
     }
 
-    // Initialize helpers (same as PDFGenerator)
-    registerHbsHelpers();
-
-    // Compile Handlebars template
-    let compiledHtml = html;
+    let compiledHtml: string;
     try {
-        const handlebarsTemplate = Handlebars.compile(html);
-        compiledHtml = handlebarsTemplate(testData);
-    } catch (e) {
-        console.error("Error compiling Handlebars template:", e);
-        // If compilation fails, use raw HTML
+        compiledHtml = renderHbsHtml(html, testData);
+    } catch (error) {
+        console.error("Error compiling Handlebars template:", error);
+        if (error instanceof TemplateHtmlError) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+        return NextResponse.json({ error: "Failed to render template" }, { status: 500 });
     }
 
     // Exact same structure as PDFGenerator.generatePDF

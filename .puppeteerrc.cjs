@@ -1,9 +1,10 @@
 const { join } = require('path');
 
 /**
- * @type {import("puppeteer").Configuration}
+ * Keep Puppeteer's Chrome for Testing cache inside the build artifact. The
+ * Puppeteer 25 install script downloads its supported Chrome revision here.
  */
 module.exports = {
-    // Changes the cache location for Puppeteer.
     cacheDirectory: join(__dirname, '.cache', 'puppeteer'),
+    skipDownload: false,
 };

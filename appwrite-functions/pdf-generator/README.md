@@ -1,64 +1,44 @@
 # PDF Generator Appwrite Function
 
-This Appwrite Function generates PDF documents automatically when a new document is added to the `documents` collection. It uses **Puppeteer** (via a system-installed Chromium) to render HTML templates populated with data using **Handlebars**.
+This Appwrite Function generates queued PDF documents from Handlebars templates.
+It inlines approved assets, renders with Puppeteer, uploads the result, and
+updates the document status.
 
-## 🚀 Key Features
-- **Asset Inlining**: Automatically inlines CSS, images, and fonts to ensure HTML is self-contained before rendering.
-- **Fast Startup**: Uses `@sparticuz/chromium` for optimized browser launch in serverless environments.
-- **Template Engine**: Uses Handlebars for flexible logic-based PDF layouts.
-- **Secure**: Implements SSRF protection, asset validation, and Signed JWTs.
-- **Automated Workflow**:
-  1. Triggered on `databases.[id].collections.[id].documents.create`.
-  2. Fetches the associated Template.
-  3. Merges data and **inlines all external assets**.
-  4. Renders PDF via Puppeteer (Sparticuz).
-  5. Uploads PDF to Appwrite Storage.
-  6. Updates the original Document and creates a Webhook record.
+## Runtime and browser
 
-## 🛠️ Installation & Configuration
-
-### 1. Build Settings
-The function uses `@sparticuz/chromium` which handles the binary requirements. Standard npm installation is sufficient.
+Use Node.js 22.12 or newer. The function pins Puppeteer 25.18.1, whose supported
+Chrome for Testing revision is `157.0.8103.78`; it does **not** combine
+`puppeteer-core` with a separately-versioned Chromium binary.
 
 - **Entrypoint:** `src/main.js`
-- **Build Commands:** `npm install`
+- **Build command:** `npm install`
+- **Browser cache:** `.cache/puppeteer` in the function build artifact
+- **Optional override:** `PUPPETEER_EXECUTABLE_PATH` only for a verified
+  compatible executable
 
-### 2. Environment Variables
-Add the following variables to your Function Settings:
+Do not set a Puppeteer skip-download variable unless an executable override is
+provided. Normal installation downloads the managed browser into the function
+cache.
+
+## Required configuration
 
 | Variable | Description |
-| :--- | :--- |
-| `APPWRITE_API_KEY` | API Key with required scopes. |
-| `NEXT_PUBLIC_APPWRITE_ENDPOINT` | Your Appwrite Endpoint. |
-| `NEXT_PUBLIC_APPWRITE_PROJECT_ID` | Your Project ID. |
+| --- | --- |
+| `APPWRITE_API_KEY` | API key with required scopes. |
+| `NEXT_PUBLIC_APPWRITE_PROJECT_ID` | Appwrite project ID. |
 | `NEXT_PUBLIC_APPWRITE_DATABASE_ID` | Database ID. |
-| `JWT_SECRET` | Secret key for PDF signatures. |
-| `ASSETS_BASE_URL` | *(Optional)* Base URL to resolve relative assets (Default: `https://cloud.appwrite.io`). |
-| `ASSETS_ALLOW_HOSTS` | *(Optional)* Comma-separated whitelist of allowed asset domains. |
+| `JWT_SECRET` | Secret for PDF signatures. |
 
-### 3. Events
-Configure the function to trigger on the following event:
-- `databases.[DATABASE_ID].collections.[DOCUMENTS_COLLECTION_ID].documents.create`
+`NEXT_PUBLIC_APPWRITE_ENDPOINT`, `ASSETS_BASE_URL`, and `ASSETS_ALLOW_HOSTS`
+remain optional as described by the function source defaults.
 
-## 📦 Dependencies
-- `node-appwrite`: ^21.1.0 (Using subpath import `node-appwrite/file` for file uploads)
-- `puppeteer-core`: Headless browser control.
-- `handlebars`: HTML templating.
-- `jose`: JWT signing.
+## Security boundaries
 
-## 🐛 Troubleshooting
+Template HTML must be a string no larger than 1 MiB before Handlebars compiles
+it. The function permits only `data:` and `about:blank` page requests after
+asset inlining.
 
-### "Failed to launch the browser process" / "__res_init: symbol not found"
-This indicates a binary mismatch. Ensure you are using the **Build Command** specified above (`apk add ...`) and that you are **NOT** importing `@sparticuz/chromium` in your code (the code is already patched to use the system chromium).
-
-### "InputFile is not a constructor"
-Ensure you are using `node-appwrite` v21+ and importing it correctly:
-```javascript
-import { InputFile } from 'node-appwrite/file';
-```
-
-## 📝 Usage Data Payload
-When creating a document in the `documents` collection, structure your payload like this:
+## Payload
 
 ```json
 {
@@ -69,4 +49,3 @@ When creating a document in the `documents` collection, structure your payload l
   "name": "My Document Name"
 }
 ```
-The function will pick this up, generate the PDF, and update the status to `completed` (or `failed`).

@@ -28,21 +28,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # y no intente descargar uno propio (lo que ahorra tiempo y evita errores)
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 WORKDIR /app
 
-# Copiar archivos de dependencias e instalar
+# Copiar archivos de dependencias
 COPY package*.json ./
-RUN npm ci
+
+# Clave: instalar TODAS las dependencias (incluyendo devDependencies)
+# Necesario porque Tailwind v4 usa @tailwindcss/postcss que está en devDependencies
+# y jszip debe resolverse correctamente durante el build
+RUN npm ci --include=dev
+
+# Refuerzo explícito por si la caché de npm omite jszip
+RUN npm install jszip --no-save
 
 # Copiar el resto del código
 COPY . .
 
+# Establecer NODE_ENV=production DESPUÉS de instalar dependencias
+# para que Next.js genere el build de producción correctamente
+ENV NODE_ENV=production
+
 # Construir la aplicación Next.js
 RUN npm run build
 
-# Exponer el puerto (Next.js por defecto usa 3000, aunque en desarrollo el README mencione 3030)
+# Exponer el puerto (Next.js por defecto usa 3000)
 EXPOSE 3000
 
 # Comando de inicio

@@ -1,0 +1,16 @@
+# Dependencies and build output are produced inside the image.
+node_modules
+.next
+*.tsbuildinfo
+
+# Generated at build time by scripts/copy-monaco-assets.mjs.
+public/monaco
+
+# Local-only state and secrets never belong in an image layer.
+.git
+.agent
+.env
+.env.*
+odd
+npm-debug.log*
+.DS_Store

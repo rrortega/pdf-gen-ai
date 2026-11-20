@@ -6,6 +6,11 @@ import {
 } from "@/lib/appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
 import { SignJWT } from "jose";
+import { isPostgresBackend } from "@/backend/config";
+import {
+  getDocumentPostgres,
+  deleteDocumentPostgres,
+} from "@/backend/data/http/documents";
 
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-me";
 const encoder = new TextEncoder();
@@ -18,6 +23,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
+  if (isPostgresBackend()) {
+    return getDocumentPostgres(request, id);
+  }
+
   await connection();
   try {
     const { id } = await params;
@@ -86,6 +96,11 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
+  if (isPostgresBackend()) {
+    return deleteDocumentPostgres(request, id);
+  }
+
   try {
     const { id } = await params;
     const auth = await getAuthenticatedDatabases(request);

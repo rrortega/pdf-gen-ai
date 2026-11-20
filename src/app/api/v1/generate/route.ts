@@ -9,6 +9,8 @@ import { ID, Permission, Role } from "node-appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
 import { SignJWT } from "jose";
 import { validateWebhookUrl } from "@/lib/security";
+import { isPostgresBackend } from "@/backend/config";
+import { generatePostgres } from "@/backend/data/http/generate";
 
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-me";
 const encoder = new TextEncoder();
@@ -55,6 +57,10 @@ const sendWebhookWithRetry = async (url: string, payload: Record<string, unknown
  * POST /api/v1/generate
  */
 export async function POST(request: NextRequest) {
+    if (isPostgresBackend()) {
+        return generatePostgres(request);
+    }
+
     try {
         const auth = await getAuthenticatedDatabases(request);
         if (!auth) {

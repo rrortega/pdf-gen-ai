@@ -5,8 +5,14 @@ import {
   COLLECTIONS,
   BUCKETS,
 } from "@/lib/appwrite";
+import { isPostgresBackend } from "@/backend/config";
+import { setupPostgres } from "@/backend/data/http/setup";
 
 export async function POST() {
+  if (isPostgresBackend()) {
+    return setupPostgres();
+  }
+
   try {
     const client = new sdk.Client()
       .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1")

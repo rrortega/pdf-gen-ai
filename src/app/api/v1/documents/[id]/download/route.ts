@@ -2,11 +2,18 @@ import { NextRequest, NextResponse, connection } from "next/server";
 import { revalidateTag } from "next/cache";
 import { DATABASE_ID, COLLECTIONS, getServerAppwriteTables } from "@/lib/appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
+import { isPostgresBackend } from "@/backend/config";
+import { downloadDocumentPostgres } from "@/backend/data/http/documents";
 
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> },
 ) {
+    const { id } = await params;
+    if (isPostgresBackend()) {
+        return downloadDocumentPostgres(request, id);
+    }
+
     await connection();
     try {
         const { id } = await params;

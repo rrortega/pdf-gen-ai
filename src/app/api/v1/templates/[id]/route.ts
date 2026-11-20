@@ -5,11 +5,22 @@ import {
   COLLECTIONS,
 } from "@/lib/appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
+import { isPostgresBackend } from "@/backend/config";
+import {
+  getTemplatePostgres,
+  updateTemplatePostgres,
+  deleteTemplatePostgres,
+} from "@/backend/data/http/templates";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
+  if (isPostgresBackend()) {
+    return getTemplatePostgres(request, id);
+  }
+
   await connection();
   try {
     const { id } = await params;
@@ -76,6 +87,11 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
+  if (isPostgresBackend()) {
+    return updateTemplatePostgres(request, id);
+  }
+
   try {
     const { id } = await params;
     const auth = await getAuthenticatedDatabases(request);
@@ -188,6 +204,11 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
+  if (isPostgresBackend()) {
+    return deleteTemplatePostgres(request, id);
+  }
+
   try {
     const { id } = await params;
     const auth = await getAuthenticatedDatabases(request);

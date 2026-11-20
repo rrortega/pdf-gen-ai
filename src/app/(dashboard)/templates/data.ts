@@ -4,6 +4,9 @@ import {
 } from "@/lib/appwrite";
 import { Query } from "node-appwrite";
 import { getAppwriteDatabases } from "@/lib/appwrite";
+import { isPostgresBackend } from "@/backend/config";
+import { getDataRepositories } from "@/backend/data/repositories";
+import { toTemplateListItem } from "@/backend/data/presenter";
 import { cacheLife, cacheTag } from "next/cache";
 
 export async function getCachedTemplates(userId: string, sessionSecret: string) {
@@ -18,6 +21,18 @@ export async function getCachedTemplates(userId: string, sessionSecret: string) 
         revalidate: 300, // 5 minutes
         expire: 3600, // 1 hour
     });
+
+    // The self-hosted backend reads through the postgres repositories.
+    if (isPostgresBackend()) {
+      const { total, rows } = await getDataRepositories().templates.list({
+        ownerId: userId,
+        limit: 100, // Fetch up to 100 templates
+      });
+      return {
+        templates: rows.map((row) => toTemplateListItem(row, false)),
+        total,
+      };
+    }
 
     const databases = await getAppwriteDatabases(sessionSecret);
 

@@ -5,9 +5,15 @@ import {
 } from "@/lib/appwrite";
 import { Query } from "node-appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
+import { isPostgresBackend } from "@/backend/config";
+import { listDocumentsPostgres } from "@/backend/data/http/documents";
 
 
 export async function GET(request: NextRequest) {
+  if (isPostgresBackend()) {
+    return listDocumentsPostgres(request);
+  }
+
   await connection();
   try {
     const auth = await getAuthenticatedDatabases(request);

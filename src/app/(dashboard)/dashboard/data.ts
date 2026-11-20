@@ -4,6 +4,9 @@ import {
 } from "@/lib/appwrite";
 import { Query, Models } from "node-appwrite";
 import { getAppwriteDatabases } from "@/lib/appwrite";
+import { isPostgresBackend } from "@/backend/config";
+import { getDataRepositories } from "@/backend/data/repositories";
+import { computeDashboardStats } from "@/backend/data/dashboard-stats";
 import { cacheLife, cacheTag } from "next/cache";
 
 interface DocumentWithStats extends Models.Document {
@@ -52,6 +55,38 @@ export async function getCachedDashboardStats(userId: string, sessionSecret: str
         revalidate: 300, // 5 minutes
         expire: 3600, // 1 hour
     });
+
+    // The self-hosted backend computes stats from the postgres repositories.
+    if (isPostgresBackend()) {
+      const repos = getDataRepositories();
+      const templates = await repos.templates.list({ ownerId: userId, limit: 1 });
+      const documents = await repos.documents.listForStats(userId, 500);
+
+      const templateTitles: Record<string, string> = {};
+      await Promise.all(
+        documents.slice(0, 5).map(async (doc) => {
+          const template = await repos.templates.getById(doc.template_id);
+          if (template) {
+            templateTitles[doc.template_id] = template.title;
+          }
+        }),
+      );
+
+      const result = computeDashboardStats({
+        templatesCount: templates.total,
+        documents,
+        templateTitles,
+      });
+
+      return {
+        stats: {
+          ...result.stats,
+          totalFiles: result.stats.documentsCount,
+        },
+        activityData: result.activityData,
+        recentDocuments: result.recentDocuments as DashboardData["recentDocuments"],
+      };
+    }
 
     const databases = await getAppwriteDatabases(sessionSecret);
 

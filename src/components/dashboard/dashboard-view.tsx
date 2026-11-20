@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getAppwriteClientSafe } from "@/lib/appwrite-client";
+import { usesSelfHostedBackend } from "@/lib/realtime-mode";
 import { useRouter } from "next/navigation";
 
 export interface DashboardData {
@@ -111,6 +112,11 @@ export default function DashboardView({ initialData, currentUserId }: DashboardV
 
     // Realtime Setup
     useEffect(() => {
+        if (usesSelfHostedBackend()) {
+            // Self-hosted backend has no Appwrite JWT to mint for realtime.
+            return;
+        }
+
         // Authenticate Client SDK for realtime
         const initRealtimeAuth = async () => {
             try {
@@ -132,6 +138,12 @@ export default function DashboardView({ initialData, currentUserId }: DashboardV
 
     // Realtime Subscription
     useEffect(() => {
+        if (usesSelfHostedBackend()) {
+            // No PostgreSQL access from the browser: degrade to a plain refetch.
+            const interval = setInterval(() => router.refresh(), 30000);
+            return () => clearInterval(interval);
+        }
+
         if (!jwtReady) return;
 
         const unsubscribers: (() => void)[] = [];

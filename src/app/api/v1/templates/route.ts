@@ -4,6 +4,8 @@ import { requireOAuth } from '@/lib/oauth-middleware';
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite';
 import { getAuthenticatedDatabases } from '@/lib/auth';
 import { Query, ID } from 'node-appwrite';
+import { isPostgresBackend } from '@/backend/config';
+import { listTemplatesPostgres, createTemplatePostgres } from '@/backend/data/http/templates';
 
 /**
  * List templates
@@ -12,6 +14,10 @@ import { Query, ID } from 'node-appwrite';
  * Supports both OAuth tokens and API keys
  */
 export async function GET(request: NextRequest) {
+  if (isPostgresBackend()) {
+    return listTemplatesPostgres(request);
+  }
+
   await connection();
   try {
     const oauthResult = await requireOAuth(request, ['templates:read']);
@@ -107,6 +113,10 @@ export async function GET(request: NextRequest) {
  * POST /api/v1/templates
  */
 export async function POST(request: NextRequest) {
+  if (isPostgresBackend()) {
+    return createTemplatePostgres(request);
+  }
+
   try {
     const auth = await getAuthenticatedDatabases(request);
     if (!auth) {

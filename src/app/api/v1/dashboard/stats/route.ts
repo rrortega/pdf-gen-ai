@@ -2,8 +2,14 @@ import { NextRequest, NextResponse, connection } from "next/server";
 import { DATABASE_ID, COLLECTIONS } from "@/lib/appwrite";
 import { getAuthenticatedDatabases } from "@/lib/auth";
 import { Query } from "node-appwrite";
+import { isPostgresBackend } from "@/backend/config";
+import { dashboardStatsPostgres } from "@/backend/data/http/dashboard";
 
 export async function GET(request: NextRequest) {
+    if (isPostgresBackend()) {
+        return dashboardStatsPostgres(request);
+    }
+
     await connection();
     try {
         const auth = await getAuthenticatedDatabases(request);

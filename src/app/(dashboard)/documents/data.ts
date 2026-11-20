@@ -4,6 +4,9 @@ import {
 } from "@/lib/appwrite";
 import { Query } from "node-appwrite";
 import { getAppwriteDatabases } from "@/lib/appwrite";
+import { isPostgresBackend } from "@/backend/config";
+import { getDataRepositories } from "@/backend/data/repositories";
+import { toDocumentListRow } from "@/backend/data/presenter";
 import { cacheLife, cacheTag } from "next/cache";
 
 export async function getCachedDocuments(userId: string, sessionSecret: string, page = 1, limit = 10) {
@@ -18,6 +21,19 @@ export async function getCachedDocuments(userId: string, sessionSecret: string, 
         revalidate: 300, // 5 minutes
         expire: 3600, // 1 hour
     });
+
+    // The self-hosted backend reads through the postgres repositories; the
+    // browser never accesses PostgreSQL directly.
+    if (isPostgresBackend()) {
+      const { total, rows } = await getDataRepositories().documents.list(userId, {
+        page,
+        limit,
+      });
+      return {
+        documents: rows.map((row) => toDocumentListRow(row)),
+        total,
+      };
+    }
 
     const databases = await getAppwriteDatabases(sessionSecret);
 

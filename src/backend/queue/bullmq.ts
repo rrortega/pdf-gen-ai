@@ -2,9 +2,10 @@ import { Queue } from "bullmq";
 import type { DataJobQueue, GenerationJobPayload, WebhookDeliveryJobPayload } from "../data-contracts";
 
 /**
- * ioredis connection options parsed from REDIS_URL. BullMQ loads the optional
- * ioredis driver lazily on first connect, so this module never imports it and
- * constructing queues or workers without enqueuing never touches the network.
+ * ioredis connection options parsed from REDIS_URL. BullMQ loads ioredis, which
+ * is now a declared runtime dependency: without it BullMQ cannot build a client
+ * in a native ESM process and every enqueue throws. Constructing queues or
+ * workers without enqueuing still never touches the network.
  */
 export interface RedisConnectionOptions {
   host: string;

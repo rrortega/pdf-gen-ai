@@ -1,11 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { getAppwriteAccount } from "@/lib/appwrite";
 import { SignJWT } from "jose";
+import { isPostgresBackend } from "@/backend/config";
+import { getPostgresAuthHttp } from "../http";
 
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-me";
 const encoder = new TextEncoder();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+    if (isPostgresBackend()) {
+        return getPostgresAuthHttp().apiKeyGetPostgres(request);
+    }
+
     try {
         const account = await getAppwriteAccount();
         await account.get();
@@ -18,13 +24,17 @@ export async function GET() {
             success: true,
             apiKey: apiKey
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error fetching API Key:", error);
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+    if (isPostgresBackend()) {
+        return getPostgresAuthHttp().apiKeyPostgres(request);
+    }
+
     try {
         const account = await getAppwriteAccount();
         const user = await account.get();
@@ -49,8 +59,16 @@ export async function POST() {
             success: true,
             apiKey: apiKey
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error generating API Key:", error);
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+}
+
+export async function DELETE(request: NextRequest) {
+    if (isPostgresBackend()) {
+        return getPostgresAuthHttp().apiKeyDeletePostgres(request);
+    }
+
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }

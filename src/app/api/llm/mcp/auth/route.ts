@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse, connection } from 'next/server';
 import { OAuthCodesService } from '@/lib/oauth-service';
 import { getAppwriteAccount } from '@/lib/appwrite';
+import { isPostgresBackend } from '@/backend/config';
+import { authGetPostgres } from '@/backend/postgres/auth/mcp-http';
 
 /**
  * OAuth Authorization Endpoint
  * Handles user consent and generates authorization code
  */
 export async function GET(request: NextRequest) {
+    if (isPostgresBackend()) {
+        return authGetPostgres(request);
+    }
+
     await connection();
     try {
         const searchParams = request.nextUrl.searchParams;

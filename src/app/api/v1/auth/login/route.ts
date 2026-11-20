@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerAppwriteAccount, getAppwriteAccount } from "@/lib/appwrite";
+import { isPostgresBackend } from "@/backend/config";
+import { getPostgresAuthHttp } from "../http";
 
 export async function POST(request: NextRequest) {
+  if (isPostgresBackend()) {
+    return getPostgresAuthHttp().loginPostgres(request);
+  }
+
   try {
     const { email, password } = await request.json();
 

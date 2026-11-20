@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { getAppwriteAccount } from "@/lib/appwrite";
+import { isPostgresBackend } from "@/backend/config";
+import { getPostgresAuthHttp } from "../http";
 
 /**
  * @swagger
@@ -28,7 +30,11 @@ import { getAppwriteAccount } from "@/lib/appwrite";
  *       500:
  *         description: Server error
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+    if (isPostgresBackend()) {
+        return getPostgresAuthHttp().requestRecoveryPostgres(request);
+    }
+
     try {
         const { email } = await request.json();
 

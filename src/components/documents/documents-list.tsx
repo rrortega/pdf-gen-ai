@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { getAppwriteClientSafe, Databases } from "@/lib/appwrite-client";
+import { usesSelfHostedBackend } from "@/lib/realtime-mode";
 import { Query } from "appwrite";
 import JSZip from "jszip";
 import DocumentApiDocsModal from "@/components/documents/DocumentApiDocsModal";
@@ -140,8 +141,16 @@ export default function DocumentsList({
         fetchDocuments(currentPage);
     }, [currentPage, fetchDocuments]);
 
-    // Realtime subscription
+    // Realtime subscription (or polling fallback for the self-hosted backend)
     useEffect(() => {
+        if (usesSelfHostedBackend()) {
+            // No PostgreSQL access from the browser: poll the documents API.
+            const interval = setInterval(() => {
+                void fetchDocuments(pageRef.current);
+            }, 15000);
+            return () => clearInterval(interval);
+        }
+
         const unsubscribers: (() => void)[] = [];
 
         const setupRealtime = async () => {
@@ -474,6 +483,24 @@ export default function DocumentsList({
         setSelectedWebhookDoc(doc);
         setLoadingLogs(true);
         setWebhookLogs([]);
+
+        if (usesSelfHostedBackend()) {
+            // Self-hosted backend: no browser database access. Degrade to the
+            // delivery summary stored on the document row.
+            setWebhookLogs([
+                {
+                    $id: `${doc.$id}-latest`,
+                    document_id: doc.$id,
+                    url: doc.webhook_callback || "",
+                    retry: doc.webhook_retry || 0,
+                    response: doc.webhook_response ?? null,
+                    execution_time: 0,
+                    $createdAt: doc.$createdAt,
+                },
+            ]);
+            setLoadingLogs(false);
+            return;
+        }
 
         try {
             const client = getAppwriteClientSafe();

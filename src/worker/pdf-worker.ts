@@ -1,5 +1,6 @@
+import { realpathSync } from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { SignJWT } from "jose";
 import { Worker as BullWorker } from "bullmq";
 import { PDFGenerator } from "../lib/pdf-generator";
@@ -453,7 +454,22 @@ export async function startPdfWorker(): Promise<void> {
 }
 
 // Long-running entry point: node --import tsx src/worker/pdf-worker.ts
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+// Compare real paths: a symlinked checkout or mount must still start the worker.
+// A raw path comparison silently turns the long-running worker into a no-op.
+function isEntryPoint(): boolean {
+  const invoked = process.argv[1];
+  if (!invoked) {
+    return false;
+  }
+
+  try {
+    return realpathSync(path.resolve(invoked)) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
   startPdfWorker().catch((error) => {
     console.error("[worker] fatal:", error);
     process.exit(1);

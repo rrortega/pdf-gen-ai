@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OAuthClientsService, OAuthCodesService, OAuthTokensService } from '@/lib/oauth-service';
 import { verifyPKCE } from '@/lib/oauth';
+import { isPostgresBackend } from '@/backend/config';
+import { tokenPostPostgres } from '@/backend/postgres/auth/mcp-http';
 
 /**
  * OAuth Token Endpoint
  * Exchanges authorization code for access token
  */
 export async function POST(request: NextRequest) {
+    if (isPostgresBackend()) {
+        return tokenPostPostgres(request);
+    }
+
     try {
         const contentType = request.headers.get('content-type') || '';
         let body: Record<string, string> = {};

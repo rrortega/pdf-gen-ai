@@ -3,6 +3,7 @@ import { jwtVerify } from "jose";
 import { getAppwriteAccount, getServerAppwriteClient, getAppwriteClient, getSessionSecret } from "./appwrite";
 import { Client, TablesDB, Storage } from "node-appwrite";
 import { OAuthClientsService, OAuthTokensService } from "./oauth-service";
+import { isPostgresBackend } from "@/backend/config";
 
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-me";
 const encoder = new TextEncoder();
@@ -55,11 +56,33 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthUse
             }
         }
 
+        // Postgres backend: opaque API keys live in auth_api_keys. The lazy
+        // import keeps Appwrite deployments independent of the auth schema.
+        if (isPostgresBackend()) {
+            const { getPostgresAuthProvider } = await import("@/backend/postgres/auth/provider");
+            const principal = await getPostgresAuthProvider().verifyApiKeySecret(token);
+            if (principal) {
+                console.log(`[AUTH] Authenticated via API key in ${Date.now() - start}ms`);
+                return principal;
+            }
+        }
+
         console.warn(`[AUTH] Bearer token provided but invalid. Time: ${Date.now() - start}ms`);
         return null;
     }
 
     // 2. Check for Session Cookie (Browser)
+    if (isPostgresBackend()) {
+        // The self-hosted backend verifies the opaque session cookie without
+        // initialising the Appwrite SDK.
+        const { getPostgresAuthProvider } = await import("@/backend/postgres/auth/provider");
+        const principal = await getPostgresAuthProvider().current();
+        if (principal) {
+            console.log(`[AUTH] Authenticated via Session Cookie in ${Date.now() - start}ms`);
+        }
+        return principal;
+    }
+
     try {
         const account = await getAppwriteAccount();
         const user = await account.get();

@@ -1,5 +1,16 @@
 import { getServerAppwriteTables, getServerAppwriteUsers, DATABASE_ID } from './appwrite';
 import { ID, Query } from 'node-appwrite';
+import { isPostgresBackend } from '@/backend/config';
+import {
+    verifyClientPostgres,
+    getUserIdFromApiKeyPostgres,
+    createCodePostgres,
+    consumeCodePostgres,
+    createTokenPostgres,
+    verifyTokenPostgres,
+    refreshTokenPostgres,
+    revokeTokenPostgres,
+} from '@/backend/postgres/auth/oauth';
 import {
     OAuthToken,
     OAuthAuthorizationCode,
@@ -25,6 +36,10 @@ export class OAuthClientsService {
      * Verify client credentials
      */
     static async verifyClient(clientId: string, clientSecret: string): Promise<boolean> {
+        if (isPostgresBackend()) {
+            return verifyClientPostgres(clientId, clientSecret);
+        }
+
         try {
             const users = getServerAppwriteUsers();
             const user = await users.get(clientId);
@@ -42,6 +57,10 @@ export class OAuthClientsService {
      * Optimization: Uses an in-memory cache to avoid expensive user listings.
      */
     static async getUserIdFromApiKey(apiKey: string): Promise<string | null> {
+        if (isPostgresBackend()) {
+            return getUserIdFromApiKeyPostgres(apiKey);
+        }
+
         // 1. Check cache first
         const cached = apiKeyCache.get(apiKey);
         if (cached && cached.expires > Date.now()) {
@@ -91,6 +110,17 @@ export class OAuthCodesService {
         codeChallenge?: string,
         codeChallengeMethod?: 'S256' | 'plain'
     ): Promise<{ code: string; expiresAt: string }> {
+        if (isPostgresBackend()) {
+            return createCodePostgres({
+                clientId,
+                userId,
+                redirectUri,
+                scopes,
+                codeChallenge,
+                codeChallengeMethod,
+            });
+        }
+
         const code = generateAuthorizationCode();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
 
@@ -119,6 +149,10 @@ export class OAuthCodesService {
      * Get and consume authorization code
      */
     static async consumeCode(code: string): Promise<OAuthAuthorizationCode | null> {
+        if (isPostgresBackend()) {
+            return consumeCodePostgres(code);
+        }
+
         try {
             const tables = getServerAppwriteTables();
             const response = await tables.listRows({
@@ -177,6 +211,10 @@ export class OAuthTokensService {
         expires_in: number;
         scope: string;
     }> {
+        if (isPostgresBackend()) {
+            return createTokenPostgres({ clientId, userId, scopes, includeRefreshToken });
+        }
+
         const accessToken = generateAccessToken();
         const refreshToken = includeRefreshToken ? generateRefreshToken() : undefined;
         const expiresIn = 3600; // 1 hour
@@ -212,6 +250,10 @@ export class OAuthTokensService {
      * Verify access token
      */
     static async verifyToken(accessToken: string): Promise<OAuthToken | null> {
+        if (isPostgresBackend()) {
+            return verifyTokenPostgres(accessToken);
+        }
+
         try {
             const tables = getServerAppwriteTables();
             const response = await tables.listRows({
@@ -253,6 +295,10 @@ export class OAuthTokensService {
         expires_in: number;
         scope: string;
     } | null> {
+        if (isPostgresBackend()) {
+            return refreshTokenPostgres(refreshToken);
+        }
+
         try {
             const tables = getServerAppwriteTables();
             const response = await tables.listRows({
@@ -291,6 +337,10 @@ export class OAuthTokensService {
      * Revoke token
      */
     static async revokeToken(token: string): Promise<boolean> {
+        if (isPostgresBackend()) {
+            return revokeTokenPostgres(token);
+        }
+
         try {
             const tables = getServerAppwriteTables();
             const response = await tables.listRows({

@@ -1,7 +1,13 @@
-import { NextResponse, connection } from "next/server";
+import { NextResponse, NextRequest, connection } from "next/server";
 import { getAppwriteAccount } from "@/lib/appwrite";
+import { isPostgresBackend } from "@/backend/config";
+import { getPostgresAuthHttp } from "../http";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (isPostgresBackend()) {
+    return getPostgresAuthHttp().mePostgres(request);
+  }
+
   await connection();
   try {
     // Create account instance with the session (handled automatically)
